@@ -1,0 +1,41 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # 2. Setup Java (for Spring Boot)
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # 3. Build Backend
+      - name: Build Backend (Spring Boot)
+        run: |
+          cd backend
+          mvn clean install
+
+      # 4. Setup Node (for React)
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      # 5. Install & Build Frontend
+      - name: Build Frontend (React)
+        run: |
+          cd frontend
+          npm install
+          npm run build
