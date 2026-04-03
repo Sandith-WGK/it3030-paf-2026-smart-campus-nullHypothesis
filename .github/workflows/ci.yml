@@ -10,32 +10,28 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repository
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 2. Setup Java (for Spring Boot)
-      - name: Set up Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      # 3. Build Backend
-      - name: Build Backend (Spring Boot)
+      # Backend build (only if exists)
+      - name: Check backend
         run: |
-          cd backend
-          mvn clean install
+          if [ -f "backend/pom.xml" ]; then
+            echo "Backend found, building..."
+            cd backend
+            mvn clean install
+          else
+            echo "No backend yet, skipping..."
+          fi
 
-      # 4. Setup Node (for React)
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      # 5. Install & Build Frontend
-      - name: Build Frontend (React)
+      # Frontend build (only if exists)
+      - name: Check frontend
         run: |
-          cd frontend
-          npm install
-          npm run build
+          if [ -f "frontend/package.json" ]; then
+            echo "Frontend found, building..."
+            cd frontend
+            npm install
+            npm run build
+          else
+            echo "No frontend yet, skipping..."
+          fi
