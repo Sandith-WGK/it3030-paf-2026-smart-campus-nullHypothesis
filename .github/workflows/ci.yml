@@ -1,37 +1,36 @@
-name: CI Pipeline
+name: CI
 
 on:
   push:
     branches: [ main ]
   pull_request:
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      # Backend build (only if exists)
-      - name: Check backend
-        run: |
-          if [ -f "backend/pom.xml" ]; then
-            echo "Backend found, building..."
-            cd backend
-            mvn clean install
-          else
-            echo "No backend yet, skipping..."
-          fi
+      # --- Backend ---
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21' # Or '17' depending on your project
+          distribution: 'temurin'
 
-      # Frontend build (only if exists)
-      - name: Check frontend
+      - name: Test Backend
+        run: mvn -B test --file backend/pom.xml
+
+      # --- Frontend ---
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Modern LTS Node version
+
+      - name: Build Frontend
         run: |
-          if [ -f "frontend/package.json" ]; then
-            echo "Frontend found, building..."
-            cd frontend
-            npm install
-            npm run build
-          else
-            echo "No frontend yet, skipping..."
-          fi
+          cd frontend
+          npm ci # 'ci' is faster and safer than 'install' for pipelines
+          npm run build
