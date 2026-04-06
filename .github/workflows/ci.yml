@@ -30,7 +30,5 @@ jobs:
           node-version: '20' # Modern LTS Node version
 
       - name: Build Frontend
-        run: |
-          cd frontend
-          npm ci # 'ci' is faster and safer than 'install' for pipelines
-          npm run build
+          working-directory: ./frontend
+          run: npm install && npm run build
