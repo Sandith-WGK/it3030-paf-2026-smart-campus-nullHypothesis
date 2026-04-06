@@ -1,0 +1,5 @@
+# Copy this file, rename to application-local.properties, and fill in your values
+# NEVER commit application-local.properties
+
+# Spring Boot 4: connection string is spring.mongodb.uri (not spring.data.mongodb.uri)
+spring.mongodb.uri=mongodb+srv://USERNAME:PASSWORD@cluster0.xxxxx.mongodb.net/smart_campus?retryWrites=true&w=majority
