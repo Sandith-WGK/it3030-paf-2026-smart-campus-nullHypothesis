@@ -1,6 +1,6 @@
 package com.smartcampus.model;
 
-import jakarta.validation.constraints.Future;
+import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -33,7 +33,7 @@ public class Booking {
     private String userId;             // ref to users collection
 
     @NotNull(message = "Booking date is required")
-    @Future(message = "Booking date must be in the future")
+    @FutureOrPresent(message = "Booking date must be today or in the future")
     private LocalDate date;
 
     @NotNull(message = "Start time is required")

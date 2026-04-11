@@ -65,12 +65,29 @@ public class BookingController {
     @GetMapping("/my")
     public ResponseEntity<ApiResponse<List<BookingResponse>>> getMyBookings(
             @RequestParam(required = false) BookingStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal UserPrincipal principal) {
 
-        List<BookingResponse> bookings = bookingService.getMyBookings(principal.getId(), status);
+        List<BookingResponse> bookings = bookingService.getMyBookings(principal.getId(), status, page, size);
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noCache())
                 .body(ApiResponse.success("Bookings retrieved successfully", bookings));
+    }
+
+    // ── GET /api/v1/bookings/resource-schedule ───────────────────────────────
+    // Get APPROVED bookings for a specific resource on a given date.
+    // Available to all authenticated users — used to show timeline availability.
+
+    @GetMapping("/resource-schedule")
+    public ResponseEntity<ApiResponse<List<BookingResponse>>> getResourceSchedule(
+            @RequestParam String resourceId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+
+        List<BookingResponse> bookings = bookingService.getResourceSchedule(resourceId, date);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.maxAge(30, TimeUnit.SECONDS))
+                .body(ApiResponse.success("Resource schedule retrieved", bookings));
     }
 
     // ── GET /api/v1/bookings ─────────────────────────────────────────────────
@@ -82,9 +99,11 @@ public class BookingController {
             @RequestParam(required = false) BookingStatus status,
             @RequestParam(required = false) String resourceId,
             @RequestParam(required = false) String userId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
 
-        List<BookingResponse> bookings = bookingService.getAllBookings(status, resourceId, userId, date);
+        List<BookingResponse> bookings = bookingService.getAllBookings(status, resourceId, userId, date, page, size);
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noCache())
                 .body(ApiResponse.success("All bookings retrieved successfully", bookings));

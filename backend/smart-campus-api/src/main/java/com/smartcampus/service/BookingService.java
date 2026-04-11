@@ -81,7 +81,7 @@ public class BookingService {
         return BookingResponse.from(booking, resource, user);
     }
 
-    public List<BookingResponse> getMyBookings(String userId, BookingStatus status) {
+    public List<BookingResponse> getMyBookings(String userId, BookingStatus status, int page, int size) {
         List<Booking> bookings = (status != null)
                 ? bookingRepository.findByUserIdAndStatus(userId, status)
                 : bookingRepository.findByUserId(userId);
@@ -89,15 +89,17 @@ public class BookingService {
         User user = userRepository.findById(userId).orElse(null);
         Map<String, Resource> resourceMap = buildResourceMap(bookings);
 
-        return bookings.stream()
+        List<BookingResponse> sorted = bookings.stream()
                 .sorted(Comparator.comparing(Booking::getDate).reversed()
                         .thenComparing(Comparator.comparing(Booking::getStartTime).reversed()))
                 .map(b -> BookingResponse.from(b, resourceMap.get(b.getResourceId()), user))
                 .collect(Collectors.toList());
+
+        return paginate(sorted, page, size);
     }
 
     public List<BookingResponse> getAllBookings(BookingStatus status, String resourceId,
-                                                String userId, LocalDate date) {
+                                                String userId, LocalDate date, int page, int size) {
         List<Booking> bookings;
 
         if (status != null && resourceId != null) {
@@ -125,11 +127,13 @@ public class BookingService {
         Map<String, Resource> resourceMap = buildResourceMap(bookings);
         Map<String, User> userMap = buildUserMap(bookings);
 
-        return bookings.stream()
+        List<BookingResponse> sorted = bookings.stream()
                 .sorted(Comparator.comparing(Booking::getCreatedAt,
                         Comparator.nullsLast(Comparator.reverseOrder())))
                 .map(b -> BookingResponse.from(b, resourceMap.get(b.getResourceId()), userMap.get(b.getUserId())))
                 .collect(Collectors.toList());
+
+        return paginate(sorted, page, size);
     }
 
     // ── Update ───────────────────────────────────────────────────────────────
@@ -149,6 +153,7 @@ public class BookingService {
         Resource resource = resourceRepository.findById(booking.getResourceId())
                 .orElseThrow(() -> new ResourceNotFoundException("Resource", "id", booking.getResourceId()));
 
+        validateResourceAvailability(resource);
         validateWithinAvailabilityWindow(resource, request.getStartTime(), request.getEndTime());
         validateCapacity(resource, request.getExpectedAttendees());
         checkForConflicts(booking.getResourceId(), request.getDate(), request.getStartTime(), request.getEndTime(), null);
@@ -274,6 +279,19 @@ public class BookingService {
         bookingRepository.delete(booking);
     }
 
+    // ── Resource Schedule ─────────────────────────────────────────────────────
+
+    public List<BookingResponse> getResourceSchedule(String resourceId, LocalDate date) {
+        Resource resource = resourceRepository.findById(resourceId)
+                .orElseThrow(() -> new ResourceNotFoundException("Resource", "id", resourceId));
+        List<Booking> bookings = bookingRepository
+                .findByResourceIdAndDateAndStatus(resourceId, date, BookingStatus.APPROVED);
+        Map<String, User> userMap = buildUserMap(bookings);
+        return bookings.stream()
+                .map(b -> BookingResponse.from(b, resource, userMap.get(b.getUserId())))
+                .collect(Collectors.toList());
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private Booking findBookingOrThrow(String bookingId) {
@@ -341,6 +359,14 @@ public class BookingService {
                     "Time slot conflicts with an existing approved booking (%s – %s on %s)",
                     conflict.getStartTime(), conflict.getEndTime(), conflict.getDate()));
         }
+    }
+
+    private <T> List<T> paginate(List<T> list, int page, int size) {
+        if (size <= 0) return list;
+        int from = page * size;
+        if (from >= list.size()) return List.of();
+        int to = Math.min(from + size, list.size());
+        return list.subList(from, to);
     }
 
     private Map<String, Resource> buildResourceMap(List<Booking> bookings) {

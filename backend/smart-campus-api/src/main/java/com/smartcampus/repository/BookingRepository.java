@@ -25,6 +25,9 @@ public interface BookingRepository extends MongoRepository<Booking, String> {
     // Get bookings for a user filtered by status
     List<Booking> findByUserIdAndStatus(String userId, BookingStatus status);
 
+    // Get all bookings for a specific resource on a given date with a specific status
+    List<Booking> findByResourceIdAndDateAndStatus(String resourceId, LocalDate date, BookingStatus status);
+
     // ── Conflict detection ──────────────────────────────────────────────────
     // Find any APPROVED booking for the same resource on the same date
     // where the time ranges overlap.
