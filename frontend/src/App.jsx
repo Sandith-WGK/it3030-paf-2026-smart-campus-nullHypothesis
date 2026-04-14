@@ -17,6 +17,12 @@ import EditBooking from './pages/bookings/EditBooking';
 import BookingDetail from './pages/bookings/BookingDetail';
 import AdminBookings from './pages/admin/AdminBookings';
 
+// Resource pages 
+import ResourceList from './pages/resources/ResourceList';
+import ResourceDetail from './pages/resources/ResourceDetail';
+import ResourceForm from './pages/resources/ResourceForm';
+import AdminResources from './pages/resources/AdminResources';
+
 // Wrapper for any authenticated route
 const PrivateRoute = ({ children }) => {
   const { isAuthenticated } = useAuth();
@@ -50,9 +56,16 @@ function App() {
       <Route path="/bookings/:id" element={<PrivateRoute><BookingDetail /></PrivateRoute>} />
       <Route path="/bookings/:id/edit" element={<PrivateRoute><EditBooking /></PrivateRoute>} />
 
+      {/* Resource routes (USER + ADMIN) */}
+      <Route path="/resources" element={<PrivateRoute><ResourceList /></PrivateRoute>} />
+      <Route path="/resources/:id" element={<PrivateRoute><ResourceDetail /></PrivateRoute>} />
+
       {/* Admin routes */}
       <Route path="/admin/users" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
       <Route path="/admin/bookings" element={<AdminRoute><AdminBookings /></AdminRoute>} />
+      <Route path="/admin/resources" element={<AdminRoute><AdminResources /></AdminRoute>} />
+      <Route path="/admin/resources/new" element={<AdminRoute><ResourceForm /></AdminRoute>} />
+      <Route path="/admin/resources/:id/edit" element={<AdminRoute><ResourceForm /></AdminRoute>} />
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
