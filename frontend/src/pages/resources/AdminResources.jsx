@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import resourceApi from '../../services/api/resourceApi';
-import { Plus, Edit, Trash2, X } from 'lucide-react';
+import { Plus, Download, Upload, Edit, Trash2, X } from 'lucide-react';
 
 /**
  * AdminResources - Admin management page for resources
- * Includes table view and CRUD operations (Create, Read, Update, Delete)
+ * Includes table view, CRUD operations, and import/export functionality
  */
 const AdminResources = () => {
   const navigate = useNavigate();
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     fetchResources();
@@ -42,6 +46,40 @@ const AdminResources = () => {
     } catch (err) {
       setError('Failed to delete resource. Please try again.');
       console.error('Error deleting resource:', err);
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+      await resourceApi.exportResources();
+    } catch (err) {
+      setError('Failed to export resources. Please try again.');
+      console.error('Error exporting resources:', err);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!importFile) {
+      setError('Please select a file to import');
+      return;
+    }
+
+    try {
+      setImporting(true);
+      setError(null);
+      const response = await resourceApi.importResources(importFile);
+      alert(response.message || 'Import successful!');
+      setShowImportModal(false);
+      setImportFile(null);
+      fetchResources();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to import resources. Please try again.');
+      console.error('Error importing resources:', err);
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -77,7 +115,7 @@ const AdminResources = () => {
         </div>
       )}
 
-      {/* Action Buttons - only Add Resource remains */}
+      {/* Action Buttons */}
       <div className="bg-white rounded-lg shadow-md p-4 mb-6">
         <div className="flex flex-wrap gap-3">
           <button
@@ -86,6 +124,21 @@ const AdminResources = () => {
           >
             <Plus className="w-4 h-4" />
             Add Resource
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:opacity-50 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            {exporting ? 'Exporting...' : 'Export CSV'}
+          </button>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            Import CSV
           </button>
         </div>
       </div>
@@ -124,7 +177,7 @@ const AdminResources = () => {
                 <tr>
                   <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
                     No resources found. Add your first resource!
-                   </td>
+                  </td>
                 </tr>
               ) : (
                 resources.map((resource) => (
@@ -176,6 +229,60 @@ const AdminResources = () => {
           </table>
         </div>
       </div>
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Import Resources from CSV</h2>
+              <button
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Select CSV File
+              </label>
+              <input
+                type="file"
+                accept=".csv"
+                onChange={(e) => setImportFile(e.target.files[0])}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <p className="mt-2 text-xs text-gray-500">
+                CSV format: ID, Name, Type, Capacity, Location, Status, Availability Start, Availability End, Description
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleImport}
+                disabled={!importFile || importing}
+                className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {importing ? 'Importing...' : 'Import'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                }}
+                className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

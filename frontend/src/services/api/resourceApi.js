@@ -1,11 +1,10 @@
 import api from './axios';
 
-//const BASE = '/api/resources';
-const BASE = '/api/v1/resources';  
+const BASE = '/api/v1/resources';
+const ADMIN_BASE = '/api/v1/admin';
 
 /**
- * Resource API service for- Facilities & Assets Catalogue
- * Only CRUD operations – no import/export
+ * Resource API service for Module A - Facilities & Assets Catalogue
  */
 const resourceApi = {
   /**
@@ -46,6 +45,57 @@ const resourceApi = {
    * @param {String} id - Resource ID
    */
   delete: (id) => api.delete(`${BASE}/${id}`),
+
+  /**
+   * Export all resources to CSV file (Admin only)
+   * Downloads the CSV file automatically
+   */
+  exportResources: async () => {
+    try {
+      const response = await api.get(`${ADMIN_BASE}/export/resources`, {
+        responseType: 'blob',
+      });
+      
+      // Create a blob from the response
+      const blob = new Blob([response.data], { type: 'text/csv' });
+      
+      // Create a download link
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'resources.csv');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Export error:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Import resources from CSV file (Admin only)
+   * @param {File} file - CSV file to upload
+   */
+  importResources: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await api.post(`${ADMIN_BASE}/import/resources`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Import error:', error);
+      throw error;
+    }
+  },
 };
 
 export default resourceApi;
