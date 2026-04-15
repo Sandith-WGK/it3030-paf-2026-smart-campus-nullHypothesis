@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { isAdmin } from './utils/auth';
 import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
 import Dashboard from './pages/Dashboard';
@@ -11,7 +12,14 @@ import ResetPassword from './pages/ResetPassword';
 import Profile from './pages/Profile';
 import VerifyEmail from './pages/VerifyEmail';
 
-// A wrapper for private routes that handles the loading state
+// Booking pages
+import MyBookings from './pages/bookings/MyBookings';
+import NewBooking from './pages/bookings/NewBooking';
+import EditBooking from './pages/bookings/EditBooking';
+import BookingDetail from './pages/bookings/BookingDetail';
+import AdminBookings from './pages/admin/AdminBookings';
+
+// Wrapper for any authenticated route
 const PrivateRoute = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
   
@@ -47,40 +55,29 @@ const AdminRoute = ({ children }) => {
 function App() {
   return (
     <Routes>
+      {/* Public routes */}
       <Route path="/" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
-      
-      {/* Protected Routes */}
-      <Route 
-        path="/dashboard" 
-        element={
-          <PrivateRoute>
-            <Dashboard />
-          </PrivateRoute>
-        } 
-      />
-      <Route 
-        path="/admin/users" 
-        element={
-          <AdminRoute>
-            <AdminDashboard />
-          </AdminRoute>
-        } 
-      />
-      <Route 
-        path="/profile" 
-        element={
-          <PrivateRoute>
-            <Profile />
-          </PrivateRoute>
-        } 
-      />
       <Route path="/verify-email" element={<VerifyEmail />} />
       
-      {/* Fallback route */}
+      {/* Protected routes (USER) */}
+      <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+      <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+
+      {/* Booking routes (USER + ADMIN) */}
+      <Route path="/bookings" element={<PrivateRoute><MyBookings /></PrivateRoute>} />
+      <Route path="/bookings/new" element={<PrivateRoute><NewBooking /></PrivateRoute>} />
+      <Route path="/bookings/:id" element={<PrivateRoute><BookingDetail /></PrivateRoute>} />
+      <Route path="/bookings/:id/edit" element={<PrivateRoute><EditBooking /></PrivateRoute>} />
+
+      {/* Admin routes */}
+      <Route path="/admin/users" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+      <Route path="/admin/bookings" element={<AdminRoute><AdminBookings /></AdminRoute>} />
+
+      {/* Fallback */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

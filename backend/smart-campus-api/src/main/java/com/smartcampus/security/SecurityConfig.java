@@ -11,6 +11,9 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -33,6 +36,7 @@ public class SecurityConfig {
 
     @Autowired
     private HttpCookieOAuth2AuthorizationRequestRepository httpCookieOAuth2AuthorizationRequestRepository;
+    private ClientRegistrationRepository clientRegistrationRepository;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -48,6 +52,7 @@ public class SecurityConfig {
                 .authorizationEndpoint(authEndpoint -> authEndpoint
                     .baseUri("/oauth2/authorize")
                     .authorizationRequestRepository(httpCookieOAuth2AuthorizationRequestRepository)
+                    .authorizationRequestResolver(googleAccountPickerResolver())
                 )
                 .userInfoEndpoint(userInfoEndpoint -> userInfoEndpoint
                     .userService(customOAuth2UserService)
@@ -70,5 +75,20 @@ public class SecurityConfig {
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
+    }
+
+    /**
+     * Forces Google to always show the account picker, even when the browser
+     * already has an active Google session. This lets users switch accounts
+     * after signing out without needing to clear browser cookies.
+     */
+    @Bean
+    public OAuth2AuthorizationRequestResolver googleAccountPickerResolver() {
+        DefaultOAuth2AuthorizationRequestResolver resolver =
+                new DefaultOAuth2AuthorizationRequestResolver(
+                        clientRegistrationRepository, "/oauth2/authorize");
+        resolver.setAuthorizationRequestCustomizer(customizer ->
+                customizer.additionalParameters(params -> params.put("prompt", "select_account")));
+        return resolver;
     }
 }

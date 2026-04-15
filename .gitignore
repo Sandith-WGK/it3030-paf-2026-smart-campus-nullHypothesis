@@ -26,3 +26,9 @@ replay_pid*
 # Local secrets (copy from application-local.properties.example)
 backend/smart-campus-api/src/main/resources/application-local.properties
 application-local.properties
+
+# Cursor IDE (plans, local editor state)
+.cursor/
+
+# Coursework PDFs in doc/ (large; add explicitly if required for submission)
+doc/*.pdf
