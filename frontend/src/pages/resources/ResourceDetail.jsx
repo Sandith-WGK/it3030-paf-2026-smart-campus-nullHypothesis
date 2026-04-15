@@ -138,7 +138,7 @@ const ResourceDetail = () => {
             {adminStatus && (
               <div className="flex gap-2">
                 <button
-                  onClick={() => navigate(`/resources/${id}/edit`)}
+                  onClick={() => navigate(`/admin/resources/${id}/edit`)}
                   className="flex items-center gap-2 px-4 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
                 >
                   <Edit className="w-4 h-4" />

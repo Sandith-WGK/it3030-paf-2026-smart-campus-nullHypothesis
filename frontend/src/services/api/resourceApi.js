@@ -1,7 +1,7 @@
 import api from './axios';
 
-const BASE = '/api/resources';
-// const BASE = '/api/v1/resources';  
+//const BASE = '/api/resources';
+const BASE = '/api/v1/resources';  
 
 /**
  * Resource API service for- Facilities & Assets Catalogue
