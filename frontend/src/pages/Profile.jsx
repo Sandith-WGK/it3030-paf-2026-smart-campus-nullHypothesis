@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Camera, CheckCircle, Mail, User as UserIcon, Lock, ShieldCheck, AlertCircle, Save, Eye, EyeOff
+  Camera, CheckCircle, Mail, User as UserIcon, Lock, ShieldCheck, AlertCircle, Save, Eye, EyeOff, ArrowLeft
 } from 'lucide-react';
 import { userService } from '../services/api/userService';
 
@@ -157,8 +157,25 @@ const Profile = () => {
     passwordCriteria.hasSpecial
   );
 
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/dashboard');
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-6 md:p-12 transition-colors duration-300">
+    <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-violet-50/60 to-fuchsia-50/50 dark:from-zinc-950 dark:via-violet-950/20 dark:to-zinc-950 p-6 md:p-12 transition-colors duration-300">
+      <button
+        type="button"
+        onClick={handleBack}
+        className="mb-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-violet-200/70 dark:border-violet-700/40 text-sm font-semibold text-violet-700 dark:text-violet-300 bg-white/80 dark:bg-zinc-900/70 hover:bg-white dark:hover:bg-zinc-900 transition-all shadow-sm"
+      >
+        <ArrowLeft size={16} />
+        Back
+      </button>
+
       <div className="max-w-4xl mx-auto">
         <header className="mb-10">
           <h1 className="text-3xl font-extrabold text-zinc-900 dark:text-zinc-100 tracking-tight">Account Settings</h1>
@@ -168,12 +185,12 @@ const Profile = () => {
         <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column: Profile Card */}
           <div className="lg:col-span-1">
-            <div className="bg-white dark:bg-zinc-900 rounded-3xl p-8 shadow-xl border border-zinc-200 dark:border-zinc-800 flex flex-col items-center">
+            <div className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-sm rounded-3xl p-8 shadow-xl border border-violet-100 dark:border-violet-900/30 flex flex-col items-center">
               <div className="relative group mb-6">
                 <img 
                   src={formData.picture || `https://ui-avatars.com/api/?name=${formData.name}&background=random`} 
                   alt="Profile" 
-                  className="w-32 h-32 rounded-full object-cover border-4 border-violet-100 dark:border-violet-900/30 shadow-2xl group-hover:scale-105 transition-transform duration-500"
+                  className="w-32 h-32 rounded-full object-cover border-4 border-violet-100 dark:border-violet-900/30 shadow-2xl group-hover:scale-105 transition-transform duration-500 ring-4 ring-violet-100/70 dark:ring-violet-900/30"
                 />
                 {canEditNameAndPicture && (
                   <label className="absolute inset-0 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-all bg-black/40 rounded-full backdrop-blur-[2px]">
@@ -202,7 +219,7 @@ const Profile = () => {
           {/* Right Column: Information & Password */}
           <div className="lg:col-span-2 space-y-6">
             {/* General Info Section */}
-            <div className="bg-white dark:bg-zinc-900 rounded-3xl p-8 shadow-xl border border-zinc-200 dark:border-zinc-800">
+            <div className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-sm rounded-3xl p-8 shadow-xl border border-violet-100 dark:border-violet-900/30">
               <div className="flex items-center gap-2 mb-6">
                 <UserIcon className="text-violet-600" size={20} />
                 <h3 className="font-bold text-lg">Personal Information</h3>
@@ -216,7 +233,7 @@ const Profile = () => {
                     value={formData.name}
                     disabled={!canEditNameAndPicture}
                     onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    className="w-full p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-violet-500 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full p-3.5 rounded-2xl bg-zinc-50/80 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-violet-500 focus:border-violet-300 dark:focus:border-violet-700 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   {isGoogleUser && (
                     <p className="text-[10px] text-violet-500 font-medium mt-2 px-1 flex items-center gap-1">
@@ -231,7 +248,7 @@ const Profile = () => {
                     value={formData.email}
                     disabled={!isLocalUser}
                     onChange={(e) => setFormData({...formData, email: e.target.value})}
-                    className="w-full p-3.5 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-violet-500 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full p-3.5 rounded-2xl bg-zinc-50/80 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-violet-500 focus:border-violet-300 dark:focus:border-violet-700 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   {isLocalUser ? (
                     <p className="text-[10px] text-zinc-400 mt-2 px-1 italic">※ Changing email requires re-verification.</p>
@@ -253,7 +270,7 @@ const Profile = () => {
 
             {/* Password Section - Only for LOCAL users */}
             {isLocalUser && (
-              <div className="bg-white dark:bg-zinc-900 rounded-3xl p-8 shadow-xl border border-zinc-200 dark:border-zinc-800">
+              <div className="bg-white/90 dark:bg-zinc-900/90 backdrop-blur-sm rounded-3xl p-8 shadow-xl border border-violet-100 dark:border-violet-900/30">
                 <div className="flex items-center gap-2 mb-6">
                   <Lock className="text-violet-600" size={20} />
                   <h3 className="font-bold text-lg">Update Password</h3>
@@ -268,7 +285,7 @@ const Profile = () => {
                       placeholder="Leave blank to keep current"
                       value={formData.password}
                       onChange={(e) => setFormData({...formData, password: e.target.value})}
-                        className="w-full p-3.5 pr-11 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-violet-500 outline-none transition-all"
+                        className="w-full p-3.5 pr-11 rounded-2xl bg-zinc-50/80 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-violet-500 focus:border-violet-300 dark:focus:border-violet-700 outline-none transition-all"
                       />
                       {formData.password?.length > 0 && (
                         <button
@@ -290,7 +307,7 @@ const Profile = () => {
                       placeholder="Verify new password"
                       value={formData.confirmPassword}
                       onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
-                        className="w-full p-3.5 pr-11 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-violet-500 outline-none transition-all"
+                        className="w-full p-3.5 pr-11 rounded-2xl bg-zinc-50/80 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 focus:ring-2 focus:ring-violet-500 focus:border-violet-300 dark:focus:border-violet-700 outline-none transition-all"
                       />
                       {formData.confirmPassword?.length > 0 && (
                         <button
@@ -308,7 +325,7 @@ const Profile = () => {
 
                 {/* Password Strength Indicators */}
                 {formData.password && (
-                  <div className="bg-zinc-50 dark:bg-zinc-950 p-6 rounded-2xl grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-gradient-to-r from-violet-50/70 to-fuchsia-50/60 dark:from-violet-900/20 dark:to-fuchsia-900/10 p-6 rounded-2xl grid grid-cols-2 md:grid-cols-4 gap-4 border border-violet-100 dark:border-violet-900/20">
                     <div className={`flex items-center gap-2 text-xs font-bold ${passwordCriteria.minLength ? 'text-green-600' : 'text-zinc-400'}`}>
                       <CheckCircle size={14} className={passwordCriteria.minLength ? 'opacity-100' : 'opacity-20'} /> 8+ Characters
                     </div>
@@ -337,7 +354,7 @@ const Profile = () => {
               <button 
                 type="submit" 
                 disabled={loading || !isPasswordStrong || !canEditNameAndPicture}
-                className="ml-auto flex items-center gap-2 px-10 py-4 bg-violet-600 text-white font-bold rounded-2xl hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-violet-600/20 active:scale-95 transition-all"
+                className="ml-auto flex items-center gap-2 px-10 py-4 bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold rounded-2xl hover:from-violet-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-violet-600/30 active:scale-95 transition-all"
               >
                 {loading ? 'Saving...' : <><Save size={20} /> Save Changes</>}
               </button>

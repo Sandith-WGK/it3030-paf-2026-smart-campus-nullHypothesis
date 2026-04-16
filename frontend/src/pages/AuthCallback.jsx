@@ -13,6 +13,17 @@ const AuthCallback = () => {
     const searchParams = new URLSearchParams(location.search);
     const token = searchParams.get('token');
     const error = searchParams.get('error');
+    const status = searchParams.get('status');
+    const userId = searchParams.get('userId');
+    const email = searchParams.get('email');
+
+    if (status === '2FA_REQUIRED' && userId) {
+      navigate('/verify-2fa', {
+        replace: true,
+        state: { userId, email: email || '' }
+      });
+      return;
+    }
 
     if (token) {
       // Decode the JWT payload (base64) to read the role claim

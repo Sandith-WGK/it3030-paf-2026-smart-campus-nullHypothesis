@@ -53,7 +53,7 @@ public class UserService {
         return userRepository.save(user);
     }
 
-    public User updateUser(String id, String email, String name, Role role, String password, String picture) {
+    public User updateUser(String id, String email, String name, Role role, String password, String picture, boolean requireEmailReverification) {
         Optional<User> userOpt = userRepository.findById(id);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
@@ -67,18 +67,31 @@ public class UserService {
                     System.out.println("DEBUG: Rejecting email change for non-local provider: " + user.getProvider());
                     throw new RuntimeException("Email addresses for Google-linked accounts cannot be modified here.");
                 }
+
+                // Prevent duplicate email collisions (Mongo has unique index on email)
+                userRepository.findByEmail(email).ifPresent(existing -> {
+                    if (!existing.getId().equals(user.getId())) {
+                        throw new IllegalArgumentException("Email is already in use.");
+                    }
+                });
                 
                 user.setEmail(email);
-                user.setEnabled(false);
-                // Standardize on 6-digit numeric verification code
-                String verificationCode = String.valueOf((int)((Math.random() * 900000) + 100000));
-                user.setVerificationCode(verificationCode);
-                
-                // Trigger the actual email sending
-                try {
-                    emailService.sendVerificationEmail(email, verificationCode);
-                } catch (Exception e) {
-                    System.err.println("Failed to send verification email during profile update: " + e.getMessage());
+                if (requireEmailReverification) {
+                    user.setEnabled(false);
+                    // Standardize on 6-digit numeric verification code
+                    String verificationCode = String.valueOf((int)((Math.random() * 900000) + 100000));
+                    user.setVerificationCode(verificationCode);
+
+                    // Trigger the actual email sending
+                    try {
+                        emailService.sendVerificationEmail(email, verificationCode);
+                    } catch (Exception e) {
+                        System.err.println("Failed to send verification email during profile update: " + e.getMessage());
+                    }
+                } else {
+                    // Admin-managed email update for another user should not lock the account.
+                    user.setEnabled(true);
+                    user.setVerificationCode(null);
                 }
             }
             

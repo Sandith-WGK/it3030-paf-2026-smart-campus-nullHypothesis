@@ -3,6 +3,7 @@ package com.smartcampus.security;
 import com.smartcampus.model.User;
 import com.smartcampus.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -22,6 +23,10 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .orElseThrow(() ->
                         new UsernameNotFoundException("User not found with email : " + email)
                 );
+
+        if (!user.isEnabled()) {
+            throw new DisabledException("Please verify your email before logging in.");
+        }
 
         return UserPrincipal.create(user);
     }
