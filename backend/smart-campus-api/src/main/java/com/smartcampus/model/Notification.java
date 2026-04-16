@@ -1,3 +1,6 @@
+/**
+ * @author Daniru
+ */
 package com.smartcampus.model;
 
 import lombok.AllArgsConstructor;
@@ -25,6 +28,8 @@ public class Notification {
     private String userId; // ref to users collection
 
     private NotifType type;
+
+    private Severity severity;
 
     private String message; // human-readable e.g. "Your booking was approved"
 

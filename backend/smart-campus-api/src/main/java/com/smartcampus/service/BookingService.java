@@ -8,17 +8,11 @@ import com.smartcampus.exception.BookingConflictException;
 import com.smartcampus.exception.InvalidBookingStateException;
 import com.smartcampus.exception.ResourceNotFoundException;
 import com.smartcampus.exception.UnauthorizedAccessException;
-import com.smartcampus.model.Booking;
-import com.smartcampus.model.BookingStatus;
-import com.smartcampus.model.Notification;
-import com.smartcampus.model.NotifType;
-import com.smartcampus.model.Resource;
-import com.smartcampus.model.ResourceStatus;
-import com.smartcampus.model.User;
+import com.smartcampus.model.*;
 import com.smartcampus.repository.BookingRepository;
-import com.smartcampus.repository.NotificationRepository;
 import com.smartcampus.repository.ResourceRepository;
 import com.smartcampus.repository.UserRepository;
+import com.smartcampus.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -37,7 +31,7 @@ public class BookingService {
     private final BookingRepository bookingRepository;
     private final ResourceRepository resourceRepository;
     private final UserRepository userRepository;
-    private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
 
     // ── Create ──────────────────────────────────────────────────────────────
 
@@ -187,13 +181,14 @@ public class BookingService {
         Resource resource = resourceRepository.findById(booking.getResourceId()).orElse(null);
         String resourceName = resource != null ? resource.getName() : "resource";
 
-        notificationRepository.save(Notification.builder()
-                .userId(booking.getUserId())
-                .type(NotifType.BOOKING_APPROVED)
-                .message(String.format("Your booking for %s on %s has been approved.", resourceName, booking.getDate()))
-                .referenceId(booking.getId())
-                .referenceType("BOOKING")
-                .build());
+        notificationService.sendNotification(
+                booking.getUserId(),
+                String.format("Your booking for %s on %s has been approved.", resourceName, booking.getDate()),
+                NotifType.BOOKING_APPROVED,
+                Severity.SUCCESS,
+                booking.getId(),
+                "BOOKING"
+        );
 
         User user = userRepository.findById(booking.getUserId()).orElse(null);
         return BookingResponse.from(saved, resource, user);
@@ -215,14 +210,15 @@ public class BookingService {
         Resource resource = resourceRepository.findById(booking.getResourceId()).orElse(null);
         String resourceName = resource != null ? resource.getName() : "resource";
 
-        notificationRepository.save(Notification.builder()
-                .userId(booking.getUserId())
-                .type(NotifType.BOOKING_REJECTED)
-                .message(String.format("Your booking for %s on %s was rejected: %s",
-                        resourceName, booking.getDate(), request.getRejectionReason()))
-                .referenceId(booking.getId())
-                .referenceType("BOOKING")
-                .build());
+        notificationService.sendNotification(
+                booking.getUserId(),
+                String.format("Your booking for %s on %s was rejected: %s",
+                        resourceName, booking.getDate(), request.getRejectionReason()),
+                NotifType.BOOKING_REJECTED,
+                Severity.ALERT,
+                booking.getId(),
+                "BOOKING"
+        );
 
         User user = userRepository.findById(booking.getUserId()).orElse(null);
         return BookingResponse.from(saved, resource, user);
@@ -248,14 +244,15 @@ public class BookingService {
         // Notify only when an admin cancels on behalf of the user
         if (isAdmin && !booking.getUserId().equals(userId)) {
             String resourceName = resource != null ? resource.getName() : "resource";
-            notificationRepository.save(Notification.builder()
-                    .userId(booking.getUserId())
-                    .type(NotifType.BOOKING_CANCELLED)
-                    .message(String.format("Your booking for %s on %s has been cancelled by an administrator.",
-                            resourceName, booking.getDate()))
-                    .referenceId(booking.getId())
-                    .referenceType("BOOKING")
-                    .build());
+            notificationService.sendNotification(
+                    booking.getUserId(),
+                    String.format("Your booking for %s on %s has been cancelled by an administrator.",
+                            resourceName, booking.getDate()),
+                    NotifType.BOOKING_CANCELLED,
+                    Severity.ALERT,
+                    booking.getId(),
+                    "BOOKING"
+            );
         }
 
         User user = userRepository.findById(booking.getUserId()).orElse(null);
