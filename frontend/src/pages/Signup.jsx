@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authService } from '../services/api/authService';
-import { useAuth } from '../context/AuthContext';
-
 const Signup = () => {
   const [formData, setFormData] = useState({
     name: '',
@@ -19,7 +17,6 @@ const Signup = () => {
   const [successMsg, setSuccessMsg] = useState('');
   
   const navigate = useNavigate();
-  const { login } = useAuth();
 
   const handleGoogleLogin = () => {
     window.location.href = 'http://localhost:8081/oauth2/authorize/google';
@@ -81,6 +78,20 @@ const Signup = () => {
     }
   };
 
+  const handleVerify = async (e) => {
+    e.preventDefault();
+    setError('');
+    setIsLoading(true);
+    try {
+      await authService.verifyEmail(formData.email, verificationCode);
+      setSuccessMsg('Email verified! Redirecting to login...');
+      setTimeout(() => navigate('/'), 1500);
+    } catch (err) {
+      setError(err.response?.data || 'Verification failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-dvh flex bg-gradient-to-br from-zinc-50 via-violet-50/90 to-fuchsia-100/80 font-sans text-zinc-800 antialiased dark:from-zinc-950 dark:via-violet-950/30 dark:to-zinc-950 dark:text-zinc-100">

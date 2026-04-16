@@ -27,7 +27,7 @@ export const AuthProvider = ({ children }) => {
       const padded = payloadBase64.padEnd(payloadBase64.length + (4 - (payloadBase64.length % 4)) % 4, '=');
       const payload = JSON.parse(atob(padded));
       return payload;
-    } catch (e) {
+    } catch {
       return null;
     }
   };
@@ -48,7 +48,7 @@ export const AuthProvider = ({ children }) => {
           // Ignore invalid non-url values (prevents broken <img> src like "profile")
           decodedUser.picture = '';
         }
-        setUser(decodedUser);
+        setUser(decodedUser); // eslint-disable-line react-hooks/set-state-in-effect
         setIsAuthenticated(true);
 
         // If key fields are missing from token (common after relogin for big picture),
@@ -61,7 +61,7 @@ export const AuthProvider = ({ children }) => {
                 const freshUser = await userService.getUserById(id);
                 if (isValidPictureSrc(freshUser?.picture)) localStorage.setItem('user_pic', freshUser.picture);
                 setUser(prev => ({ ...prev, ...freshUser }));
-              } catch (e) {
+              } catch {
                 // Non-fatal: profile will fall back to avatar placeholder
               }
             })();
@@ -125,4 +125,5 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);

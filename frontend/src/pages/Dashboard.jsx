@@ -62,11 +62,12 @@ const userCards = [
   },
 ];
 
-function AdminStatCard({ label, value, icon: Icon, color, bg, loading: busy }) {
+// eslint-disable-next-line no-unused-vars
+function AdminStatCard({ label, value, icon: StatIcon, color, bg, loading: busy }) {
   return (
     <div className={`rounded-xl ${bg} border border-zinc-200 dark:border-zinc-800 px-5 py-4 flex items-center gap-4`}>
       <div className={`rounded-lg p-2.5 ${bg}`}>
-        <Icon size={20} className={color} />
+        <StatIcon size={20} className={color} />
       </div>
       <div>
         <p className={`text-2xl font-bold ${color}`}>

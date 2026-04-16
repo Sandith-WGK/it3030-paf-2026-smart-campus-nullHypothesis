@@ -13,24 +13,33 @@ const AuthCallback = () => {
     const searchParams = new URLSearchParams(location.search);
     const token = searchParams.get('token');
     const error = searchParams.get('error');
+    const status = searchParams.get('status');
+    const userId = searchParams.get('userId');
+    const email = searchParams.get('email');
+
+    if (status === '2FA_REQUIRED' && userId) {
+      navigate('/verify-2fa', {
+        replace: true,
+        state: { userId, email: email || '' }
+      });
+      return;
+    }
 
     if (token) {
       // Decode the JWT payload (base64) to read the role claim
       try {
         const payloadBase64 = token.split('.')[1];
-        const payload = JSON.parse(atob(payloadBase64));
+        JSON.parse(atob(payloadBase64));
         login(token);
         navigate('/dashboard', { replace: true });
-      } catch (e) {
-        // Fallback if decoding fails
+      } catch {
         login(token);
         navigate('/dashboard', { replace: true });
       }
     } else if (error) {
       // Handle authentication error
-      setErrorMsg(error);
+      setErrorMsg(error); // eslint-disable-line react-hooks/set-state-in-effect
     } else {
-      // No token or error found, invalid callback
       setErrorMsg("Invalid Authentication Callback.");
     }
   }, [location, login, navigate]);

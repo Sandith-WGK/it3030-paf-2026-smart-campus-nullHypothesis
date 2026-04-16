@@ -1,29 +1,32 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import { userService } from '../services/api/userService';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+
 import { 
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend
 } from 'recharts';
 import { 
-  Search, FileDown, Plus, Edit2, Trash2, X, Brain, CheckCircle, Camera, Lock, Eye, EyeOff
+  Moon, Sun, Search, FileDown, Plus, Edit2, Trash2, X, Brain, CheckCircle, Camera, Lock, AlertCircle
+  , Eye, EyeOff
 } from 'lucide-react';
 import Layout from '../components/layout/Layout';
 
 const COLORS = ['#8b5cf6', '#f59e0b', '#3b82f6', '#10b981'];
 
 export default function AdminDashboard() {
-  const { logout, user, login } = useAuth();
-  const navigate = useNavigate();
+  const { user, login } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [isExporting, setIsExporting] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
+  const [showEditConfirmPassword, setShowEditConfirmPassword] = useState(false);
+  const [editConfirmPassword, setEditConfirmPassword] = useState('');
   
   // Modals state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -32,6 +35,18 @@ export default function AdminDashboard() {
   const [newUserData, setNewUserData] = useState({ email: '', name: '', role: 'USER' });
   const editingProvider = (editingUser?.provider || '').toUpperCase();
   const isEditingLocalUser = editingProvider === 'LOCAL';
+  const editPassword = editingUser?.password || '';
+  const editPasswordCriteria = {
+    minLength: editPassword.length >= 8,
+    hasUpper: /[A-Z]/.test(editPassword),
+    hasNumber: /[0-9]/.test(editPassword),
+    hasSpecial: /[!@#$%^&*(),.?":{}|<>]/.test(editPassword),
+  };
+  const isEditPasswordStrong =
+    editPasswordCriteria.minLength &&
+    editPasswordCriteria.hasUpper &&
+    editPasswordCriteria.hasNumber &&
+    editPasswordCriteria.hasSpecial;
 
   useEffect(() => {
     fetchUsers();
@@ -55,12 +70,6 @@ export default function AdminDashboard() {
     }
   };
 
-  // Handlers
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
-
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this user?")) {
       await userService.deleteUser(id);
@@ -79,6 +88,17 @@ export default function AdminDashboard() {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     try {
+      if (isEditingLocalUser && editPassword) {
+        if (!isEditPasswordStrong) {
+          alert("Please ensure the new password meets all security requirements.");
+          return;
+        }
+        if (editPassword !== editConfirmPassword) {
+          alert("Passwords do not match.");
+          return;
+        }
+      }
+
       const updatePayload = {
         name: editingUser.name,
         role: editingUser.role,
@@ -101,6 +121,8 @@ export default function AdminDashboard() {
 
       setIsEditModalOpen(false);
       setShowEditPassword(false);
+      setShowEditConfirmPassword(false);
+      setEditConfirmPassword('');
       fetchUsers();
     } catch (err) {
       console.error('Update failed:', err);
@@ -477,6 +499,8 @@ export default function AdminDashboard() {
                               // Never prefill password (DB contains hashed value for LOCAL users)
                               setEditingUser({ ...user, password: '' });
                               setShowEditPassword(false);
+                              setShowEditConfirmPassword(false);
+                              setEditConfirmPassword('');
                               setIsEditModalOpen(true);
                             }}
                             className="p-2 text-zinc-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 dark:hover:text-blue-400 rounded-lg transition-colors"
@@ -630,7 +654,60 @@ export default function AdminDashboard() {
                       <p className="text-[10px] text-violet-500 mt-2">Google account: password cannot be changed here.</p>
                     )}
                   </div>
+                  <div className="col-span-1">
+                    <label className="flex items-center gap-1 block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
+                      <Lock size={12} /> Confirm Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showEditConfirmPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        value={editConfirmPassword}
+                        disabled={!isEditingLocalUser}
+                        onChange={e => setEditConfirmPassword(e.target.value)}
+                        className="w-full p-3 pr-11 rounded-xl border border-zinc-200 bg-zinc-50 focus:bg-white focus:ring-2 focus:ring-violet-500 outline-none dark:bg-zinc-950 dark:border-zinc-700 transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                      {editConfirmPassword.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowEditConfirmPassword(v => !v)}
+                          className="absolute inset-y-0 right-0 flex items-center pr-3 text-zinc-400 hover:text-violet-500 transition-colors disabled:opacity-40"
+                          disabled={!isEditingLocalUser}
+                          aria-label={showEditConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                        >
+                          {showEditConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
+
+                {isEditingLocalUser && editPassword.length > 0 && (
+                  <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 p-3 space-y-2">
+                    <div className={`flex items-center gap-2 text-xs font-medium ${editPasswordCriteria.minLength ? 'text-green-600' : 'text-zinc-500'}`}>
+                      <CheckCircle size={14} className={editPasswordCriteria.minLength ? 'opacity-100' : 'opacity-30'} />
+                      At least 8 characters
+                    </div>
+                    <div className={`flex items-center gap-2 text-xs font-medium ${editPasswordCriteria.hasUpper ? 'text-green-600' : 'text-zinc-500'}`}>
+                      <CheckCircle size={14} className={editPasswordCriteria.hasUpper ? 'opacity-100' : 'opacity-30'} />
+                      One uppercase letter
+                    </div>
+                    <div className={`flex items-center gap-2 text-xs font-medium ${editPasswordCriteria.hasNumber ? 'text-green-600' : 'text-zinc-500'}`}>
+                      <CheckCircle size={14} className={editPasswordCriteria.hasNumber ? 'opacity-100' : 'opacity-30'} />
+                      One number
+                    </div>
+                    <div className={`flex items-center gap-2 text-xs font-medium ${editPasswordCriteria.hasSpecial ? 'text-green-600' : 'text-zinc-500'}`}>
+                      <CheckCircle size={14} className={editPasswordCriteria.hasSpecial ? 'opacity-100' : 'opacity-30'} />
+                      One special character
+                    </div>
+                    {editConfirmPassword.length > 0 && editPassword !== editConfirmPassword && (
+                      <div className="flex items-center gap-2 text-xs font-medium text-red-500">
+                        <AlertCircle size={14} />
+                        Passwords do not match
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 <div className="pt-2 flex justify-end gap-3 border-t border-zinc-100 dark:border-zinc-800 mt-2">
                   <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-4 py-2 text-sm font-medium rounded-xl text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-all">Cancel</button>

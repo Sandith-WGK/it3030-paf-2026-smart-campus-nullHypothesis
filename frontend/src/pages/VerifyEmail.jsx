@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/api/authService';
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldCheck, Mail, ArrowLeft, CheckCircle, ExternalLink, Loader2 } from 'lucide-react';
 
@@ -10,6 +11,8 @@ const VerifyEmail = () => {
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   
@@ -33,6 +36,14 @@ const VerifyEmail = () => {
       setError("No email address provided. Please check your link.");
     }
   }, [location, logout]);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setInterval(() => {
+      setResendCooldown((s) => (s > 0 ? s - 1 : 0));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [resendCooldown]);
 
   const handleVerify = async (e) => {
     e.preventDefault();
@@ -64,6 +75,23 @@ const VerifyEmail = () => {
       setError(msg);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!email || resendLoading || resendCooldown > 0) return;
+    setResendLoading(true);
+    setError('');
+    try {
+      await authService.resendVerification(email);
+      setResendCooldown(30);
+    } catch (err) {
+      const msg = err.response?.data?.message ||
+        (typeof err.response?.data === 'string' ? err.response.data : null) ||
+        "Failed to resend code. Please try again.";
+      setError(msg);
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -159,6 +187,21 @@ const VerifyEmail = () => {
                     <><Loader2 className="animate-spin" size={20} /> Authenticating...</>
                   ) : (
                     'Confirm Identity'
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={!email || loading || resendLoading || resendCooldown > 0}
+                  className="w-full py-3 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200 font-bold text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800/60 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                >
+                  {resendLoading ? (
+                    <><Loader2 className="animate-spin" size={18} /> Sending...</>
+                  ) : resendCooldown > 0 ? (
+                    `Resend code in ${resendCooldown}s`
+                  ) : (
+                    'Resend code'
                   )}
                 </button>
 

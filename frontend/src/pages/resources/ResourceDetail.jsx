@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion as Motion } from 'framer-motion';
 import resourceApi from '../../services/api/resourceApi';
@@ -24,11 +24,7 @@ const ResourceDetail = () => {
   const [deleting, setDeleting] = useState(false);
   const adminStatus = isAdmin();
 
-  useEffect(() => {
-    fetchResource();
-  }, [id]);
-
-  const fetchResource = async () => {
+  const fetchResource = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -40,7 +36,11 @@ const ResourceDetail = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    fetchResource();
+  }, [fetchResource]);
 
   const handleDelete = async () => {
     if (!deleteConfirm) {

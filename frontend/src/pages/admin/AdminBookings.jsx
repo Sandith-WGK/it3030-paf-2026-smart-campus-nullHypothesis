@@ -118,7 +118,7 @@ export default function AdminBookings() {
       setToast({ type: 'success', message: `${ids.length} booking${ids.length > 1 ? 's' : ''} approved` });
       setBulkApproveOpen(false);
       animateAndReload(ids);
-    } catch (err) {
+    } catch {
       setToast({ type: 'error', message: 'Some bookings could not be approved' });
     } finally {
       setBulkLoading(false);
@@ -257,7 +257,7 @@ export default function AdminBookings() {
       ) : (
         <div className="space-y-3">
           <AnimatePresence>
-            {bookings.map((b, i) => {
+            {bookings.map((b) => {
               const isRemoving = removingIds.has(b.id);
               const isPending = b.status === 'PENDING';
               const isSelected = selected.has(b.id);

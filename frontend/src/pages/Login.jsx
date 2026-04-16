@@ -23,7 +23,15 @@ const Login = () => {
     
     try {
       const data = await authService.login(email, password);
-      
+
+      if (data?.status === '2FA_REQUIRED' && data?.userId) {
+        navigate('/verify-2fa', {
+          replace: true,
+          state: { userId: data.userId, email }
+        });
+        return;
+      }
+
       // Save token and login context
       login(data.token);
 
