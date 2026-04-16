@@ -9,19 +9,17 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend
 } from 'recharts';
 import { 
-  Moon, Sun, Search, FileDown, Plus, Edit2, Trash2, X, Brain, CheckCircle, Camera, Lock
-  , Eye, EyeOff
+  Search, FileDown, Plus, Edit2, Trash2, X, Brain, CheckCircle, Camera, Lock, Eye, EyeOff
 } from 'lucide-react';
-import Navbar from '../components/Navbar';
+import Layout from '../components/layout/Layout';
 
 const COLORS = ['#8b5cf6', '#f59e0b', '#3b82f6', '#10b981'];
 
 export default function AdminDashboard() {
-  const { logout, user, login, updateUserLocal } = useAuth();
+  const { logout, user, login } = useAuth();
   const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [isExporting, setIsExporting] = useState(false);
@@ -37,11 +35,6 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchUsers();
-    // Check system pref for dark mode
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setDarkMode(true);
-      document.documentElement.classList.add('dark');
-    }
   }, []);
 
   const fetchUsers = async () => {
@@ -59,15 +52,6 @@ export default function AdminDashboard() {
       setUsers([]);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const toggleDarkMode = () => {
-    setDarkMode(!darkMode);
-    if (!darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
     }
   };
 
@@ -111,17 +95,8 @@ export default function AdminDashboard() {
       const response = await userService.updateUser(editingUser.id, updatePayload);
       
       const currentUserId = user?.userId || user?.sub || user?.id;
-      if (currentUserId && editingUser.id === currentUserId) {
-        if (response && response.token) {
-          login(response.token, response.user);
-        } else {
-          updateUserLocal({
-            name: editingUser.name,
-            email: editingUser.email,
-            role: editingUser.role,
-            picture: editingUser.picture
-          });
-        }
+      if (currentUserId && editingUser.id === currentUserId && response?.token) {
+        login(response.token, response.user);
       }
 
       setIsEditModalOpen(false);
@@ -333,11 +308,8 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className={`min-h-dvh transition-colors duration-300 w-full font-sans antialiased flex flex-col ${darkMode ? 'bg-zinc-950 text-zinc-100' : 'bg-zinc-50 text-zinc-900'}`}>
-      
-      <Navbar />
-
-      <main className="flex-1 p-8 max-w-7xl mx-auto w-full space-y-8">
+    <Layout title="User Management">
+      <div className="space-y-8">
         
         {/* Top Widgets */}
         <div className="grid gap-6 md:grid-cols-3">
@@ -382,7 +354,7 @@ export default function AdminDashboard() {
                   <Pie data={roleDistribution} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
                     {roleDistribution.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
                   </Pie>
-                  <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', backgroundColor: darkMode ? '#18181b' : '#fff', color: darkMode ? '#fff' : '#000', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                  <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                   <Legend verticalAlign="bottom" height={36} />
                 </PieChart>
               </ResponsiveContainer>
@@ -395,10 +367,10 @@ export default function AdminDashboard() {
             <div className="flex-1 min-h-0">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={registrationsByDate}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? '#3f3f46' : '#e4e4e7'} />
-                  <XAxis dataKey="date" stroke={darkMode ? '#a1a1aa' : '#71717a'} fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke={darkMode ? '#a1a1aa' : '#71717a'} fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip cursor={{ fill: darkMode ? '#27272a' : '#f4f4f5' }} contentStyle={{ borderRadius: '12px', border: 'none', backgroundColor: darkMode ? '#18181b' : '#fff', color: darkMode ? '#fff' : '#000' }} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
+                  <XAxis dataKey="date" stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} />
+                  <YAxis stroke="#71717a" fontSize={12} tickLine={false} axisLine={false} />
+                  <Tooltip cursor={{ fill: '#f4f4f5' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                   <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -525,7 +497,7 @@ export default function AdminDashboard() {
           
         </motion.div>
 
-      </main>
+      </div>
 
       {/* CREATE MODAL */}
       <AnimatePresence>
@@ -630,7 +602,7 @@ export default function AdminDashboard() {
                   </div>
 
                   <div className="col-span-1">
-                    <label className="flex items-center gap-1 block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
+                    <label className="flex items-center gap-1 text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
                       <Lock size={12} /> New Password
                     </label>
                     <div className="relative">
@@ -670,6 +642,6 @@ export default function AdminDashboard() {
         )}
       </AnimatePresence>
 
-    </div>
+    </Layout>
   );
 }

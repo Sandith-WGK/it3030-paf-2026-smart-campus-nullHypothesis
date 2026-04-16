@@ -27,12 +27,7 @@ const Login = () => {
       // Save token and login context
       login(data.token);
 
-      // Route based on role
-      if (data.role === 'ADMIN') {
-        navigate('/admin/users', { replace: true });
-      } else {
-        navigate('/dashboard', { replace: true });
-      }
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       const payload = err.response?.data;
       const message =

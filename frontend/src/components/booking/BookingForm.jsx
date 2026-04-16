@@ -1,7 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import resourceService from '../../services/api/resourceService';
 import bookingService from '../../services/api/bookingService';
-import { Loader2 } from 'lucide-react';
+import BookingTimeline from './BookingTimeline';
+import { Loader2, Search, ChevronRight, ChevronLeft, Check } from 'lucide-react';
+
+// ─── Time utilities ────────────────────────────────────────────────────────────
 
 function timeToMinutes(t) {
   const [h, m] = t.split(':').map(Number);
@@ -17,43 +21,99 @@ function minutesToTime(m) {
 function computeAvailableSlots(bookings, windowStart, windowEnd) {
   const wsMin = timeToMinutes(windowStart);
   const weMin = timeToMinutes(windowEnd);
-
-  const sorted = [...bookings].sort((a, b) =>
-    timeToMinutes(a.startTime) - timeToMinutes(b.startTime),
-  );
-
+  const sorted = [...bookings].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
   const gaps = [];
   let cursor = wsMin;
-
   for (const b of sorted) {
     const bStart = timeToMinutes(b.startTime);
     const bEnd = timeToMinutes(b.endTime);
     if (bStart > cursor) {
       const gapEnd = Math.min(bStart, weMin);
-      if (gapEnd - cursor >= 30) {
-        gaps.push({ start: minutesToTime(cursor), end: minutesToTime(gapEnd) });
-      }
+      if (gapEnd - cursor >= 30) gaps.push({ start: minutesToTime(cursor), end: minutesToTime(gapEnd) });
     }
     cursor = Math.max(cursor, bEnd);
   }
-
   if (cursor < weMin && weMin - cursor >= 30) {
     gaps.push({ start: minutesToTime(cursor), end: minutesToTime(weMin) });
   }
-
   return gaps;
 }
 
+// ─── Shared styles ─────────────────────────────────────────────────────────────
+
 const inputClass =
   'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder-zinc-500';
-
 const labelClass = 'block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1';
 const errorClass = 'text-xs text-red-500 mt-1';
 
-export default function BookingForm({ initial = {}, onSubmit, loading, submitLabel = 'Submit', fixedResourceId }) {
-  const [resources, setResources] = useState([]);
-  const [resourcesLoading, setResourcesLoading] = useState(!fixedResourceId);
+// ─── Resource type metadata ────────────────────────────────────────────────────
 
+const RESOURCE_TYPES = ['ALL', 'HALL', 'LAB', 'ROOM', 'EQUIPMENT'];
+const TYPE_ICONS = { HALL: '🏛️', LAB: '🔬', ROOM: '🚪', EQUIPMENT: '🖥️' };
+
+// ─── Step indicator ────────────────────────────────────────────────────────────
+
+function StepIndicator({ steps, currentStep }) {
+  return (
+    <div className="flex items-center mb-8">
+      {steps.map((label, i) => {
+        const stepNum = i + 1;
+        const done = stepNum < currentStep;
+        const active = stepNum === currentStep;
+        return (
+          <React.Fragment key={label}>
+            <div className="flex flex-col items-center min-w-0">
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all ${
+                  done
+                    ? 'bg-violet-600 text-white'
+                    : active
+                    ? 'bg-violet-600 text-white ring-4 ring-violet-100 dark:ring-violet-500/20'
+                    : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-400'
+                }`}
+              >
+                {done ? <Check size={14} /> : stepNum}
+              </div>
+              <span
+                className={`text-[11px] mt-1.5 font-medium whitespace-nowrap ${
+                  active ? 'text-violet-600 dark:text-violet-400' : 'text-zinc-400'
+                }`}
+              >
+                {label}
+              </span>
+            </div>
+            {i < steps.length - 1 && (
+              <div
+                className={`flex-1 h-0.5 mx-2 mb-5 transition-colors ${
+                  done ? 'bg-violet-600' : 'bg-zinc-200 dark:bg-zinc-700'
+                }`}
+              />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Main component ────────────────────────────────────────────────────────────
+
+export default function BookingForm({ initial = {}, onSubmit, loading, submitLabel = 'Submit', fixedResourceId }) {
+  // When editing (fixedResourceId set), skip resource selection and start at date/time.
+  const totalSteps = fixedResourceId ? 2 : 3;
+  const stepLabels = fixedResourceId
+    ? ['Date & Time', 'Details & Review']
+    : ['Choose Resource', 'Date & Time', 'Details & Review'];
+
+  // realStep: 1=resource, 2=datetime, 3=details (always consistent)
+  // uiStep: what the user sees (1-based within stepLabels)
+  const toUiStep = (real) => (fixedResourceId ? real - 1 : real);
+  const toRealStep = (ui) => (fixedResourceId ? ui + 1 : ui);
+
+  const [uiStep, setUiStep] = useState(1);
+  const realStep = toRealStep(uiStep);
+
+  // ── Form state ────────────────────────────────────────────────────────────────
   const [form, setForm] = useState({
     resourceId: initial.resourceId ?? '',
     date: initial.date ?? '',
@@ -64,56 +124,35 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
   });
   const [errors, setErrors] = useState({});
 
-  // Derive selected resource from the resources list and current selection
-  const selectedResource = useMemo(
-    () => resources.find((r) => r.id === form.resourceId) ?? null,
-    [resources, form.resourceId],
-  );
+  const set = (field) => (e) => {
+    setForm((f) => ({ ...f, [field]: e.target.value }));
+    setErrors((er) => ({ ...er, [field]: undefined }));
+  };
 
-  // When using a fixed resource (edit/rebook), we still need its availability window
+  const setField = (field, value) => {
+    setForm((f) => ({ ...f, [field]: value }));
+    setErrors((er) => ({ ...er, [field]: undefined }));
+  };
+
+  // ── Resources ─────────────────────────────────────────────────────────────────
+  const [resources, setResources] = useState([]);
+  const [resourcesLoading, setResourcesLoading] = useState(!fixedResourceId);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState('ALL');
+
   const [fixedResource, setFixedResource] = useState(null);
-  useEffect(() => {
-    if (!fixedResourceId) return;
-    resourceService
-      .getResourceById(fixedResourceId)
-      .then((res) => setFixedResource(res.data?.data ?? res.data ?? null))
-      .catch(() => setFixedResource(null));
-  }, [fixedResourceId]);
-
-  // The resource whose availability window we use for slot computation
-  const activeResource = fixedResourceId ? fixedResource : selectedResource;
-
-  // Available slot chips
-  const [slots, setSlots] = useState([]);
-  const [slotsLoading, setSlotsLoading] = useState(false);
-
-  const activeResourceId = fixedResourceId || form.resourceId;
 
   useEffect(() => {
-    if (!activeResourceId || !form.date) {
-      setSlots([]);
+    if (fixedResourceId) {
+      resourceService
+        .getResourceById(fixedResourceId)
+        .then((res) => setFixedResource(res.data?.data ?? res.data ?? null))
+        .catch(() => setFixedResource(null));
       return;
     }
-    setSlotsLoading(true);
-    bookingService
-      .getResourceSchedule(activeResourceId, form.date)
-      .then((res) => {
-        const approved = res.data?.data ?? res.data ?? [];
-        const windowStart = activeResource?.availabilityStart ?? '07:00';
-        const windowEnd = activeResource?.availabilityEnd ?? '22:00';
-        setSlots(computeAvailableSlots(Array.isArray(approved) ? approved : [], windowStart, windowEnd));
-      })
-      .catch(() => setSlots([]))
-      .finally(() => setSlotsLoading(false));
-  }, [activeResourceId, form.date, activeResource]);
-
-  // Load resources for the picker (only when no fixed resource)
-  useEffect(() => {
-    if (fixedResourceId) return;
     resourceService
       .getResources({ status: 'ACTIVE' })
       .then((res) => {
-        // Defensively ensure we always set an array regardless of response shape
         const raw = res.data?.data ?? res.data;
         setResources(Array.isArray(raw) ? raw : []);
       })
@@ -121,42 +160,98 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
       .finally(() => setResourcesLoading(false));
   }, [fixedResourceId]);
 
-  const set = (field) => (e) => {
-    setForm((f) => ({ ...f, [field]: e.target.value }));
-    setErrors((er) => ({ ...er, [field]: undefined }));
-  };
+  const selectedResource = useMemo(
+    () => resources.find((r) => r.id === form.resourceId) ?? null,
+    [resources, form.resourceId],
+  );
+  const activeResource = fixedResourceId ? fixedResource : selectedResource;
+  const activeResourceId = fixedResourceId || form.resourceId;
 
-  const validate = () => {
-    const e = {};
-    if (!fixedResourceId && !form.resourceId) e.resourceId = 'Please select a resource';
-    if (!form.date) e.date = 'Date is required';
-    if (!form.startTime) e.startTime = 'Start time is required';
-    if (!form.endTime) e.endTime = 'End time is required';
-    if (form.startTime && form.endTime && form.startTime >= form.endTime)
-      e.endTime = 'End time must be after start time';
-    if (!form.purpose || form.purpose.trim().length < 5)
-      e.purpose = 'Purpose must be at least 5 characters';
-    if (form.purpose && form.purpose.length > 500)
-      e.purpose = 'Purpose must be at most 500 characters';
-    if (form.expectedAttendees && Number(form.expectedAttendees) < 1)
-      e.expectedAttendees = 'Must be a positive number';
-    if (
-      selectedResource?.capacity &&
-      form.expectedAttendees &&
-      Number(form.expectedAttendees) > selectedResource.capacity
-    ) {
-      e.expectedAttendees = `Exceeds capacity (${selectedResource.capacity})`;
-    }
-    return e;
-  };
+  const filteredResources = useMemo(() => {
+    return resources.filter((r) => {
+      const matchType = typeFilter === 'ALL' || r.type === typeFilter;
+      const q = searchQuery.toLowerCase();
+      const matchSearch =
+        !q ||
+        r.name.toLowerCase().includes(q) ||
+        (r.location ?? '').toLowerCase().includes(q);
+      return matchType && matchSearch;
+    });
+  }, [resources, typeFilter, searchQuery]);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const errs = validate();
-    if (Object.keys(errs).length > 0) {
-      setErrors(errs);
+  // ── Schedule & slots ──────────────────────────────────────────────────────────
+  const [allBookings, setAllBookings] = useState([]);
+  const [slots, setSlots] = useState([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!activeResourceId || !form.date) {
+      setSlots([]);
+      setAllBookings([]);
       return;
     }
+    setSlotsLoading(true);
+    bookingService
+      .getResourceSchedule(activeResourceId, form.date)
+      .then((res) => {
+        const raw = res.data?.data ?? res.data ?? [];
+        const approved = Array.isArray(raw) ? raw : [];
+        setAllBookings(approved);
+        const windowStart = activeResource?.availabilityStart ?? '07:00';
+        const windowEnd = activeResource?.availabilityEnd ?? '22:00';
+        setSlots(computeAvailableSlots(approved, windowStart, windowEnd));
+      })
+      .catch(() => {
+        setAllBookings([]);
+        setSlots([]);
+      })
+      .finally(() => setSlotsLoading(false));
+  }, [activeResourceId, form.date, activeResource]);
+
+  // ── Validation ────────────────────────────────────────────────────────────────
+  const validateStep = (step) => {
+    const e = {};
+    if (step === 1 && !fixedResourceId) {
+      if (!form.resourceId) e.resourceId = 'Please select a resource';
+    }
+    if (step === 2) {
+      if (!form.date) e.date = 'Date is required';
+      if (!form.startTime) e.startTime = 'Start time is required';
+      if (!form.endTime) e.endTime = 'End time is required';
+      if (form.startTime && form.endTime && form.startTime >= form.endTime)
+        e.endTime = 'End time must be after start time';
+    }
+    if (step === 3) {
+      if (!form.purpose || form.purpose.trim().length < 5)
+        e.purpose = 'Purpose must be at least 5 characters';
+      if (form.purpose && form.purpose.length > 500)
+        e.purpose = 'Purpose must be at most 500 characters';
+      if (form.expectedAttendees && Number(form.expectedAttendees) < 1)
+        e.expectedAttendees = 'Must be a positive number';
+      if (
+        activeResource?.capacity &&
+        form.expectedAttendees &&
+        Number(form.expectedAttendees) > activeResource.capacity
+      ) {
+        e.expectedAttendees = `Exceeds capacity (${activeResource.capacity})`;
+      }
+    }
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const nextStep = () => {
+    if (!validateStep(realStep)) return;
+    setUiStep((s) => Math.min(s + 1, totalSteps));
+  };
+
+  const prevStep = () => {
+    setErrors({});
+    setUiStep((s) => Math.max(s - 1, 1));
+  };
+
+  const handleFinalSubmit = () => {
+    if (!validateStep(3)) return;
     const payload = {
       ...(fixedResourceId ? {} : { resourceId: form.resourceId }),
       date: form.date,
@@ -168,171 +263,376 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
     onSubmit(payload);
   };
 
-  // Group resources by type
-  const grouped = resources.reduce((acc, r) => {
-    (acc[r.type] = acc[r.type] ?? []).push(r);
-    return acc;
-  }, {});
-
   const today = new Date().toISOString().split('T')[0];
+  const selectedRange =
+    form.startTime && form.endTime ? { start: form.startTime, end: form.endTime } : null;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Resource picker */}
-      {!fixedResourceId && (
-        <div>
-          <label className={labelClass}>Resource *</label>
-          {resourcesLoading ? (
-            <div className="flex items-center gap-2 text-sm text-zinc-400">
-              <Loader2 size={14} className="animate-spin" /> Loading resources…
-            </div>
-          ) : (
-            <select className={inputClass} value={form.resourceId} onChange={set('resourceId')}>
-              <option value="">Select a resource</option>
-              {Object.entries(grouped).map(([type, items]) => (
-                <optgroup key={type} label={type}>
-                  {items.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name} — {r.location}
-                      {r.capacity ? ` (cap: ${r.capacity})` : ''}
-                    </option>
-                  ))}
-                </optgroup>
+    <div>
+      <StepIndicator steps={stepLabels} currentStep={uiStep} />
+
+      <AnimatePresence mode="wait">
+        {/* ── Step 1: Resource Selection ── */}
+        {realStep === 1 && (
+          <motion.div
+            key="step-resource"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.18 }}
+          >
+            {/* Type filter chips */}
+            <div className="flex gap-2 mb-4 flex-wrap">
+              {RESOURCE_TYPES.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTypeFilter(t)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    typeFilter === t
+                      ? 'bg-violet-600 text-white'
+                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                  }`}
+                >
+                  {t === 'ALL' ? 'All Types' : `${TYPE_ICONS[t] ?? ''} ${t}`}
+                </button>
               ))}
-            </select>
-          )}
-          {errors.resourceId && <p className={errorClass}>{errors.resourceId}</p>}
+            </div>
 
-          {/* Resource info card */}
-          {selectedResource && (
-            <div className="mt-2 rounded-lg bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/20 px-4 py-3 text-xs text-violet-800 dark:text-violet-300 space-y-1">
-              <p>
-                <span className="font-semibold">Location:</span> {selectedResource.location}
+            {/* Search */}
+            <div className="relative mb-4">
+              <Search
+                size={15}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"
+              />
+              <input
+                type="text"
+                placeholder="Search by name or location…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={`${inputClass} pl-9`}
+              />
+            </div>
+
+            {/* Resource cards */}
+            {resourcesLoading ? (
+              <div className="flex items-center gap-2 text-sm text-zinc-400 py-6">
+                <Loader2 size={16} className="animate-spin" /> Loading resources…
+              </div>
+            ) : filteredResources.length === 0 ? (
+              <p className="text-sm text-zinc-500 italic py-6">
+                No resources match your filters.
               </p>
-              {selectedResource.capacity && (
-                <p>
-                  <span className="font-semibold">Capacity:</span> {selectedResource.capacity}
-                </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-1">
+                {filteredResources.map((r) => {
+                  const isSelected = form.resourceId === r.id;
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => {
+                        setField('resourceId', r.id);
+                        // Auto-advance to next step on selection
+                        setTimeout(() => setUiStep(2), 120);
+                      }}
+                      className={`p-4 rounded-xl border text-left transition-all ${
+                        isSelected
+                          ? 'border-violet-500 bg-violet-50 dark:bg-violet-500/10 dark:border-violet-500'
+                          : 'border-zinc-200 bg-white hover:border-violet-300 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-violet-600'
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xl leading-none shrink-0">
+                          {TYPE_ICONS[r.type] ?? '📦'}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p
+                            className={`font-semibold text-sm truncate ${
+                              isSelected
+                                ? 'text-violet-700 dark:text-violet-300'
+                                : 'text-zinc-900 dark:text-zinc-100'
+                            }`}
+                          >
+                            {r.name}
+                          </p>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                            {r.type} · {r.location}
+                          </p>
+                          {r.capacity && (
+                            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+                              Capacity: {r.capacity}
+                            </p>
+                          )}
+                          {r.availabilityStart && r.availabilityEnd && (
+                            <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">
+                              Available: {r.availabilityStart}–{r.availabilityEnd}
+                            </p>
+                          )}
+                        </div>
+                        {isSelected && (
+                          <Check
+                            size={15}
+                            className="text-violet-600 dark:text-violet-400 shrink-0 mt-0.5"
+                          />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {errors.resourceId && <p className={errorClass}>{errors.resourceId}</p>}
+          </motion.div>
+        )}
+
+        {/* ── Step 2: Date & Time ── */}
+        {realStep === 2 && (
+          <motion.div
+            key="step-datetime"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.18 }}
+            className="space-y-5"
+          >
+            {/* Selected resource summary */}
+            {activeResource && (
+              <div className="rounded-xl border border-violet-200 dark:border-violet-500/30 bg-violet-50 dark:bg-violet-500/10 px-4 py-3 flex items-center gap-3">
+                <span className="text-xl leading-none">
+                  {TYPE_ICONS[activeResource.type] ?? '📦'}
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-violet-800 dark:text-violet-200">
+                    {activeResource.name}
+                  </p>
+                  <p className="text-xs text-violet-600 dark:text-violet-400">
+                    {activeResource.type} · {activeResource.location}
+                    {activeResource.capacity ? ` · Cap: ${activeResource.capacity}` : ''}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Date */}
+            <div>
+              <label className={labelClass}>Date *</label>
+              <input
+                type="date"
+                className={inputClass}
+                min={today}
+                value={form.date}
+                onChange={set('date')}
+              />
+              {errors.date && <p className={errorClass}>{errors.date}</p>}
+            </div>
+
+            {/* Timeline + slots (shown once resource and date are selected) */}
+            {activeResourceId && form.date && (
+              <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 p-4">
+                {slotsLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-zinc-400">
+                    <Loader2 size={12} className="animate-spin" /> Checking availability…
+                  </div>
+                ) : (
+                  <>
+                    <BookingTimeline
+                      bookings={allBookings}
+                      selectedRange={selectedRange}
+                    />
+
+                    {slots.length > 0 ? (
+                      <div className="mt-4">
+                        <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">
+                          Click a slot to auto-fill the time
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {slots.map((slot) => {
+                            const isSelected =
+                              form.startTime === slot.start && form.endTime === slot.end;
+                            return (
+                              <button
+                                key={`${slot.start}-${slot.end}`}
+                                type="button"
+                                onClick={() => {
+                                  setField('startTime', slot.start);
+                                  setField('endTime', slot.end);
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                  isSelected
+                                    ? 'bg-violet-600 text-white'
+                                    : 'bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20'
+                                }`}
+                              >
+                                {slot.start} – {slot.end}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-zinc-400 italic mt-3">
+                        {allBookings.length > 0
+                          ? 'No free slots remaining on this date.'
+                          : 'All day is available — choose any time below.'}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Manual time range */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className={labelClass}>Start Time *</label>
+                <input
+                  type="time"
+                  className={inputClass}
+                  value={form.startTime}
+                  onChange={set('startTime')}
+                />
+                {errors.startTime && <p className={errorClass}>{errors.startTime}</p>}
+              </div>
+              <div>
+                <label className={labelClass}>End Time *</label>
+                <input
+                  type="time"
+                  className={inputClass}
+                  value={form.endTime}
+                  onChange={set('endTime')}
+                />
+                {errors.endTime && <p className={errorClass}>{errors.endTime}</p>}
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Step 3: Details & Review ── */}
+        {realStep === 3 && (
+          <motion.div
+            key="step-details"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.18 }}
+            className="space-y-5"
+          >
+            {/* Purpose */}
+            <div>
+              <label className={labelClass}>Purpose *</label>
+              <textarea
+                className={`${inputClass} resize-none`}
+                rows={3}
+                placeholder="Briefly describe the purpose of this booking…"
+                value={form.purpose}
+                onChange={set('purpose')}
+                maxLength={500}
+              />
+              <div className="flex justify-between">
+                {errors.purpose ? (
+                  <p className={errorClass}>{errors.purpose}</p>
+                ) : (
+                  <span />
+                )}
+                <p className="text-xs text-zinc-400 mt-1">{form.purpose.length}/500</p>
+              </div>
+            </div>
+
+            {/* Expected Attendees */}
+            <div>
+              <label className={labelClass}>Expected Attendees</label>
+              <input
+                type="number"
+                className={inputClass}
+                min={1}
+                placeholder="e.g. 20"
+                value={form.expectedAttendees}
+                onChange={set('expectedAttendees')}
+              />
+              {errors.expectedAttendees && (
+                <p className={errorClass}>{errors.expectedAttendees}</p>
               )}
-              {selectedResource.availabilityStart && selectedResource.availabilityEnd && (
-                <p>
-                  <span className="font-semibold">Available:</span>{' '}
-                  {selectedResource.availabilityStart} – {selectedResource.availabilityEnd}
-                </p>
-              )}
             </div>
-          )}
-        </div>
-      )}
 
-      {/* Date */}
-      <div>
-        <label className={labelClass}>Date *</label>
-        <input type="date" className={inputClass} min={today} value={form.date} onChange={set('date')} />
-        {errors.date && <p className={errorClass}>{errors.date}</p>}
-      </div>
-
-      {/* Time range */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className={labelClass}>Start Time *</label>
-          <input type="time" className={inputClass} value={form.startTime} onChange={set('startTime')} />
-          {errors.startTime && <p className={errorClass}>{errors.startTime}</p>}
-        </div>
-        <div>
-          <label className={labelClass}>End Time *</label>
-          <input type="time" className={inputClass} value={form.endTime} onChange={set('endTime')} />
-          {errors.endTime && <p className={errorClass}>{errors.endTime}</p>}
-        </div>
-      </div>
-
-      {/* Smart slot suggestions */}
-      {(activeResourceId && form.date) && (
-        <div>
-          <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-2">
-            Available time slots
-          </p>
-          {slotsLoading ? (
-            <div className="flex items-center gap-2 text-xs text-zinc-400">
-              <Loader2 size={12} className="animate-spin" />
-              Checking availability…
+            {/* Booking summary review */}
+            <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 p-4">
+              <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider mb-3">
+                Booking Summary
+              </p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                <div>
+                  <p className="text-xs text-zinc-400 mb-0.5">Resource</p>
+                  <p className="font-medium text-zinc-800 dark:text-zinc-200 truncate">
+                    {activeResource?.name ?? '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-400 mb-0.5">Location</p>
+                  <p className="font-medium text-zinc-800 dark:text-zinc-200">
+                    {activeResource?.location ?? '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-400 mb-0.5">Date</p>
+                  <p className="font-medium text-zinc-800 dark:text-zinc-200">
+                    {form.date || '—'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-400 mb-0.5">Time</p>
+                  <p className="font-medium text-zinc-800 dark:text-zinc-200">
+                    {form.startTime && form.endTime
+                      ? `${form.startTime} – ${form.endTime}`
+                      : '—'}
+                  </p>
+                </div>
+                {form.expectedAttendees && (
+                  <div>
+                    <p className="text-xs text-zinc-400 mb-0.5">Attendees</p>
+                    <p className="font-medium text-zinc-800 dark:text-zinc-200">
+                      {form.expectedAttendees}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
-          ) : slots.length === 0 ? (
-            <p className="text-xs text-zinc-400 dark:text-zinc-500 italic">
-              No available slots on this date.
-            </p>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {slots.map((slot) => {
-                const isSelected =
-                  form.startTime === slot.start && form.endTime === slot.end;
-                return (
-                  <button
-                    key={`${slot.start}-${slot.end}`}
-                    type="button"
-                    onClick={() => {
-                      setForm((f) => ({ ...f, startTime: slot.start, endTime: slot.end }));
-                      setErrors((er) => ({ ...er, startTime: undefined, endTime: undefined }));
-                    }}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                      isSelected
-                        ? 'bg-violet-600 text-white'
-                        : 'bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20'
-                    }`}
-                  >
-                    {slot.start} – {slot.end}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Purpose */}
-      <div>
-        <label className={labelClass}>Purpose *</label>
-        <textarea
-          className={`${inputClass} resize-none`}
-          rows={3}
-          placeholder="Briefly describe the purpose of this booking…"
-          value={form.purpose}
-          onChange={set('purpose')}
-          maxLength={500}
-        />
-        <div className="flex justify-between">
-          {errors.purpose ? (
-            <p className={errorClass}>{errors.purpose}</p>
-          ) : (
-            <span />
-          )}
-          <p className="text-xs text-zinc-400 mt-1">{form.purpose.length}/500</p>
-        </div>
+      {/* ── Navigation ── */}
+      <div className={`flex mt-6 ${uiStep > 1 ? 'justify-between' : 'justify-end'}`}>
+        {uiStep > 1 && (
+          <button
+            type="button"
+            onClick={prevStep}
+            className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <ChevronLeft size={16} /> Back
+          </button>
+        )}
+
+        {uiStep < totalSteps ? (
+          <button
+            type="button"
+            onClick={nextStep}
+            className="flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white transition-colors"
+          >
+            Next <ChevronRight size={16} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleFinalSubmit}
+            disabled={loading}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
+          >
+            {loading && <Loader2 size={15} className="animate-spin" />}
+            {submitLabel}
+          </button>
+        )}
       </div>
-
-      {/* Expected Attendees */}
-      <div>
-        <label className={labelClass}>Expected Attendees</label>
-        <input
-          type="number"
-          className={inputClass}
-          min={1}
-          placeholder="e.g. 20"
-          value={form.expectedAttendees}
-          onChange={set('expectedAttendees')}
-        />
-        {errors.expectedAttendees && <p className={errorClass}>{errors.expectedAttendees}</p>}
-      </div>
-
-      {/* Submit */}
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full flex items-center justify-center gap-2 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-2.5 text-sm transition-colors"
-      >
-        {loading && <Loader2 size={15} className="animate-spin" />}
-        {submitLabel}
-      </button>
-    </form>
+    </div>
   );
 }

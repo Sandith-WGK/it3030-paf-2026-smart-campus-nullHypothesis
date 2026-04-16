@@ -19,7 +19,23 @@ const DAY_SPAN = DAY_END - DAY_START;
 
 const HOUR_MARKS = Array.from({ length: 16 }, (_, i) => i + 7); // 07 – 22
 
-export default function BookingTimeline({ bookings = [], highlightId }) {
+export default function BookingTimeline({ bookings = [], highlightId, selectedRange }) {
+  const selectedStart = selectedRange ? timeToMinutes(selectedRange.start) : null;
+  const selectedEnd = selectedRange ? timeToMinutes(selectedRange.end) : null;
+  const selectedValid =
+    selectedStart !== null &&
+    selectedEnd !== null &&
+    selectedEnd > selectedStart &&
+    selectedStart >= DAY_START &&
+    selectedEnd <= DAY_END;
+
+  const selectedLeft = selectedValid
+    ? ((selectedStart - DAY_START) / DAY_SPAN) * 100
+    : 0;
+  const selectedWidth = selectedValid
+    ? ((selectedEnd - selectedStart) / DAY_SPAN) * 100
+    : 0;
+
   return (
     <div className="w-full">
       <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 mb-2 uppercase tracking-wider">
@@ -28,6 +44,7 @@ export default function BookingTimeline({ bookings = [], highlightId }) {
 
       {/* Track */}
       <div className="relative h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 overflow-hidden">
+        {/* Existing bookings */}
         {bookings.map((b) => {
           const start = timeToMinutes(b.startTime);
           const end = timeToMinutes(b.endTime);
@@ -47,6 +64,15 @@ export default function BookingTimeline({ bookings = [], highlightId }) {
             />
           );
         })}
+
+        {/* Selected range overlay */}
+        {selectedValid && (
+          <div
+            title={`Your selection: ${selectedRange.start}–${selectedRange.end}`}
+            className="absolute top-0 bottom-0 bg-violet-500/40 border-2 border-violet-500 rounded"
+            style={{ left: `${selectedLeft}%`, width: `${Math.max(selectedWidth, 0.8)}%` }}
+          />
+        )}
       </div>
 
       {/* Hour labels */}
@@ -73,6 +99,12 @@ export default function BookingTimeline({ bookings = [], highlightId }) {
             {s.charAt(0) + s.slice(1).toLowerCase()}
           </span>
         ))}
+        {selectedValid && (
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block w-3 h-3 rounded-sm bg-violet-500/40 border border-violet-500" />
+            Your selection
+          </span>
+        )}
       </div>
     </div>
   );

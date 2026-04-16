@@ -19,16 +19,8 @@ const AuthCallback = () => {
       try {
         const payloadBase64 = token.split('.')[1];
         const payload = JSON.parse(atob(payloadBase64));
-        const role = payload?.role || 'USER';
-
         login(token);
-
-        // Route based on role
-        if (role === 'ADMIN') {
-          navigate('/admin/users', { replace: true });
-        } else {
-          navigate('/dashboard', { replace: true });
-        }
+        navigate('/dashboard', { replace: true });
       } catch (e) {
         // Fallback if decoding fails
         login(token);
