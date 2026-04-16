@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import resourceApi from '../../services/api/resourceApi';
 import { ArrowLeft } from 'lucide-react';
@@ -28,14 +28,7 @@ const ResourceForm = () => {
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState(null);
 
-  // Fetch resource data if in edit mode
-  useEffect(() => {
-    if (isEditMode) {
-      fetchResource();
-    }
-  }, [id]);
-
-  const fetchResource = async () => {
+  const fetchResource = useCallback(async () => {
     try {
       setFetchLoading(true);
       const response = await resourceApi.getById(id);
@@ -57,7 +50,13 @@ const ResourceForm = () => {
     } finally {
       setFetchLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (isEditMode) {
+      fetchResource();
+    }
+  }, [isEditMode, fetchResource]);
 
   const validateForm = () => {
     const newErrors = {};

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Camera, CheckCircle, Mail, User as UserIcon, Lock, ShieldCheck, AlertCircle, Save, Eye, EyeOff, ArrowLeft
@@ -8,13 +9,13 @@ import {
 import { userService } from '../services/api/userService';
 
 const Profile = () => {
-  const { user, login, logout, updateUserLocal } = useAuth();
+  const { user, login, updateUserLocal } = useAuth();
   const navigate = useNavigate();
   const provider = (user?.provider || '').toUpperCase();
   const isLocalUser = provider === 'LOCAL';
   const isGoogleUser = provider === 'GOOGLE';
   const canEditNameAndPicture = isLocalUser || isGoogleUser;
-  const canEditRole = false; // Role changes are managed by admins (use Admin panel)
+  const _CanEditRole = false;
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);

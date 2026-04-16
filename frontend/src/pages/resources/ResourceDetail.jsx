@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import resourceApi from '../../services/api/resourceApi';
 import { isAdmin } from '../../utils/auth';
@@ -16,11 +16,7 @@ const ResourceDetail = () => {
   const [error, setError] = useState(null);
   const adminStatus = isAdmin();
 
-  useEffect(() => {
-    fetchResource();
-  }, [id]);
-
-  const fetchResource = async () => {
+  const fetchResource = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -32,7 +28,11 @@ const ResourceDetail = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    fetchResource();
+  }, [fetchResource]);
 
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this resource? This action cannot be undone.')) {

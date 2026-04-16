@@ -2,35 +2,58 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-  build:
+  backend:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # --- Backend ---
-      - name: Set up Java
+      - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
-          java-version: '21' # Or '17' depending on your project
+          java-version: '21'
           distribution: 'temurin'
+          cache: 'maven'
 
-      - name: Test Backend
-        run: mvn -B test --file backend/smart-campus-api/pom.xml
+      - name: Build & Test Backend
+        run: mvn -B verify --file backend/smart-campus-api/pom.xml
 
-      # --- Frontend (skipped until frontend/package.json exists) ---
-      - name: Set up Node.js
-        if: hashFiles('frontend/package.json') != ''
+      - name: Upload Backend Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-jar
+          path: backend/smart-campus-api/target/*.jar
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint Frontend
+        working-directory: frontend
+        run: npm run lint
 
       - name: Build Frontend
-        if: hashFiles('frontend/package.json') != ''
         working-directory: frontend
-        run: npm install && npm run build
+        run: npm run build
+
+      - name: Upload Frontend Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist

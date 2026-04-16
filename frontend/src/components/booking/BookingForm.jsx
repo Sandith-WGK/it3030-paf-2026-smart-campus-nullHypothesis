@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import resourceService from '../../services/api/resourceService';
 import bookingService from '../../services/api/bookingService';
@@ -105,9 +106,6 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
     ? ['Date & Time', 'Details & Review']
     : ['Choose Resource', 'Date & Time', 'Details & Review'];
 
-  // realStep: 1=resource, 2=datetime, 3=details (always consistent)
-  // uiStep: what the user sees (1-based within stepLabels)
-  const toUiStep = (real) => (fixedResourceId ? real - 1 : real);
   const toRealStep = (ui) => (fixedResourceId ? ui + 1 : ui);
 
   const [uiStep, setUiStep] = useState(1);
@@ -186,7 +184,7 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
 
   useEffect(() => {
     if (!activeResourceId || !form.date) {
-      setSlots([]);
+      setSlots([]); // eslint-disable-line react-hooks/set-state-in-effect
       setAllBookings([]);
       return;
     }

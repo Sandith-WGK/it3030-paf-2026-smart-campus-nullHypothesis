@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import { userService } from '../services/api/userService';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+
 import { 
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend
 } from 'recharts';
@@ -17,8 +18,7 @@ import Layout from '../components/layout/Layout';
 const COLORS = ['#8b5cf6', '#f59e0b', '#3b82f6', '#10b981'];
 
 export default function AdminDashboard() {
-  const { logout, user, login } = useAuth();
-  const navigate = useNavigate();
+  const { user, login } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -68,12 +68,6 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Handlers
-  const handleLogout = () => {
-    logout();
-    navigate('/');
   };
 
   const handleDelete = async (id) => {

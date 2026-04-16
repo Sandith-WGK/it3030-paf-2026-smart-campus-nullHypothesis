@@ -29,19 +29,17 @@ const AuthCallback = () => {
       // Decode the JWT payload (base64) to read the role claim
       try {
         const payloadBase64 = token.split('.')[1];
-        const payload = JSON.parse(atob(payloadBase64));
+        JSON.parse(atob(payloadBase64));
         login(token);
         navigate('/dashboard', { replace: true });
-      } catch (e) {
-        // Fallback if decoding fails
+      } catch {
         login(token);
         navigate('/dashboard', { replace: true });
       }
     } else if (error) {
       // Handle authentication error
-      setErrorMsg(error);
+      setErrorMsg(error); // eslint-disable-line react-hooks/set-state-in-effect
     } else {
-      // No token or error found, invalid callback
       setErrorMsg("Invalid Authentication Callback.");
     }
   }, [location, login, navigate]);

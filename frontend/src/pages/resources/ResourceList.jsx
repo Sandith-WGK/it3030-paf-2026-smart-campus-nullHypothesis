@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import resourceApi from '../../services/api/resourceApi';
 import { Search, Filter, MapPin, Users, Clock } from 'lucide-react';
@@ -21,12 +21,7 @@ const ResourceList = () => {
     status: '',
   });
 
-  // Fetch resources on component mount and when filters change
-  useEffect(() => {
-    fetchResources();
-  }, [filters]);
-
-  const fetchResources = async () => {
+  const fetchResources = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -47,7 +42,11 @@ const ResourceList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
+
+  useEffect(() => {
+    fetchResources();
+  }, [fetchResources]);
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
