@@ -2,6 +2,7 @@ package com.smartcampus.controller;
 
 import com.smartcampus.model.Role;
 import com.smartcampus.model.User;
+import com.smartcampus.security.UserPrincipal;
 import com.smartcampus.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -54,9 +55,19 @@ public class UserController {
     public ResponseEntity<AuthResponse> updateUser(@PathVariable String id, @RequestBody UpdateUserRequest request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         boolean isAdmin = auth != null && auth.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        String actorUserId = (auth != null && auth.getPrincipal() instanceof UserPrincipal up) ? up.getUserId() : null;
+        boolean isSelfUpdate = actorUserId != null && actorUserId.equals(id);
         Role effectiveRole = isAdmin ? request.role() : null;
 
-        User updated = userService.updateUser(id, request.email(), request.name(), effectiveRole, request.password(), request.picture());
+        User updated = userService.updateUser(
+                id,
+                request.email(),
+                request.name(),
+                effectiveRole,
+                request.password(),
+                request.picture(),
+                isSelfUpdate
+        );
         String newToken = jwtProvider.generateTokenFromUser(updated);
         return ResponseEntity.ok(new AuthResponse(newToken, updated));
     }

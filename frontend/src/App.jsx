@@ -11,6 +11,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
 import Profile from './pages/Profile';
 import VerifyEmail from './pages/VerifyEmail';
+import VerifyTwoFactor from './pages/VerifyTwoFactor';
 
 // Booking pages
 import MyBookings from './pages/bookings/MyBookings';
@@ -68,6 +69,7 @@ function App() {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/verify-2fa" element={<VerifyTwoFactor />} />
       
       {/* Protected routes (USER) */}
       <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />

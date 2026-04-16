@@ -49,6 +49,12 @@ public class User {
     @JsonIgnore
     private Instant resetCodeExpiresAt;
 
+    @JsonIgnore
+    private String twoFactorCode;
+
+    @JsonIgnore
+    private Instant twoFactorCodeExpiresAt;
+
     @CreatedDate
     private Instant createdAt;
 }
