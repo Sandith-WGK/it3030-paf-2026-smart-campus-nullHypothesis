@@ -24,7 +24,10 @@ function minutesToTime(m) {
 function computeAvailableSlots(bookings, windowStart, windowEnd) {
   const wsMin = timeToMinutes(windowStart);
   const weMin = timeToMinutes(windowEnd);
-  const sorted = [...bookings].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
+  // Only APPROVED bookings are treated as occupied — PENDING ones are visible
+  // on the timeline (yellow) but don't block slot selection for new requests.
+  const occupiedBookings = bookings.filter((b) => b.status === 'APPROVED');
+  const sorted = [...occupiedBookings].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
   const gaps = [];
   let cursor = wsMin;
   for (const b of sorted) {

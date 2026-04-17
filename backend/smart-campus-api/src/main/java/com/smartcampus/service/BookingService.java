@@ -24,6 +24,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +50,8 @@ public class BookingService {
         validateTimeRange(request.getStartTime(), request.getEndTime());
         validateWithinAvailabilityWindow(resource, request.getStartTime(), request.getEndTime());
         validateCapacity(resource, request.getExpectedAttendees());
+        checkForDuplicateBooking(request.getResourceId(), userId, request.getDate(), request.getStartTime(), request.getEndTime(), null);
+        validateAggregateCapacity(resource, request.getResourceId(), request.getDate(), request.getStartTime(), request.getEndTime(), request.getExpectedAttendees(), null);
         checkForConflicts(request.getResourceId(), request.getDate(), request.getStartTime(), request.getEndTime(), null);
 
         Booking booking = Booking.builder()
@@ -156,7 +159,9 @@ public class BookingService {
         validateResourceAvailability(resource);
         validateWithinAvailabilityWindow(resource, request.getStartTime(), request.getEndTime());
         validateCapacity(resource, request.getExpectedAttendees());
-        checkForConflicts(booking.getResourceId(), request.getDate(), request.getStartTime(), request.getEndTime(), null);
+        checkForDuplicateBooking(booking.getResourceId(), userId, request.getDate(), request.getStartTime(), request.getEndTime(), bookingId);
+        validateAggregateCapacity(resource, booking.getResourceId(), request.getDate(), request.getStartTime(), request.getEndTime(), request.getExpectedAttendees(), bookingId);
+        checkForConflicts(booking.getResourceId(), request.getDate(), request.getStartTime(), request.getEndTime(), bookingId);
 
         booking.setDate(request.getDate());
         booking.setStartTime(request.getStartTime());
@@ -284,8 +289,14 @@ public class BookingService {
     public List<BookingResponse> getResourceSchedule(String resourceId, LocalDate date) {
         Resource resource = resourceRepository.findById(resourceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Resource", "id", resourceId));
-        List<Booking> bookings = bookingRepository
+        // Return both APPROVED and PENDING so the timeline shows all active bookings
+        List<Booking> approved = bookingRepository
                 .findByResourceIdAndDateAndStatus(resourceId, date, BookingStatus.APPROVED);
+        List<Booking> pending = bookingRepository
+                .findByResourceIdAndDateAndStatus(resourceId, date, BookingStatus.PENDING);
+        List<Booking> bookings = new ArrayList<>();
+        bookings.addAll(approved);
+        bookings.addAll(pending);
         Map<String, User> userMap = buildUserMap(bookings);
         return bookings.stream()
                 .map(b -> BookingResponse.from(b, resource, userMap.get(b.getUserId())))
@@ -335,6 +346,67 @@ public class BookingService {
             throw new InvalidBookingStateException(String.format(
                     "Expected attendees (%d) exceeds resource capacity (%d)",
                     expectedAttendees, resource.getCapacity()));
+        }
+    }
+
+    /**
+     * Validates that the sum of expected attendees across ALL overlapping APPROVED/PENDING
+     * bookings (excluding the booking being updated) does not exceed resource capacity.
+     * This prevents multiple concurrent bookings from collectively overflowing the room.
+     */
+    private void validateAggregateCapacity(Resource resource, String resourceId,
+            LocalDate date, LocalTime startTime, LocalTime endTime,
+            Integer expectedAttendees, String excludeBookingId) {
+        if (resource.getCapacity() == null || expectedAttendees == null) return;
+
+        List<Booking> overlapping = bookingRepository
+                .findOverlappingActiveBookings(resourceId, date, startTime, endTime);
+
+        if (excludeBookingId != null) {
+            overlapping = overlapping.stream()
+                    .filter(b -> !b.getId().equals(excludeBookingId))
+                    .collect(Collectors.toList());
+        }
+
+        int existingTotal = overlapping.stream()
+                .mapToInt(b -> b.getExpectedAttendees() != null ? b.getExpectedAttendees() : 0)
+                .sum();
+
+        if (existingTotal + expectedAttendees > resource.getCapacity()) {
+            int remaining = resource.getCapacity() - existingTotal;
+            throw new InvalidBookingStateException(String.format(
+                    "Total attendees (%d existing + %d new = %d) exceed resource capacity (%d). " +
+                    "Only %d spot(s) remaining in this time slot.",
+                    existingTotal, expectedAttendees,
+                    existingTotal + expectedAttendees,
+                    resource.getCapacity(), Math.max(remaining, 0)));
+        }
+    }
+
+    /**
+     * Throws BookingConflictException if the requesting user already has an active
+     * (PENDING or APPROVED) booking for the same resource at an overlapping time.
+     * Prevents duplicate bookings from the same user.
+     */
+    private void checkForDuplicateBooking(String resourceId, String userId,
+            LocalDate date, LocalTime startTime, LocalTime endTime,
+            String excludeBookingId) {
+        List<Booking> duplicates = bookingRepository
+                .findUserOverlappingBookings(resourceId, userId, date, startTime, endTime);
+
+        if (excludeBookingId != null) {
+            duplicates = duplicates.stream()
+                    .filter(b -> !b.getId().equals(excludeBookingId))
+                    .collect(Collectors.toList());
+        }
+
+        if (!duplicates.isEmpty()) {
+            Booking existing = duplicates.get(0);
+            throw new BookingConflictException(String.format(
+                    "You already have a %s booking for this resource on %s (%s – %s). " +
+                    "Please edit or cancel your existing booking instead.",
+                    existing.getStatus(), existing.getDate(),
+                    existing.getStartTime(), existing.getEndTime()));
         }
     }
 
