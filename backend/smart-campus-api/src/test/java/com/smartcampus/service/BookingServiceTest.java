@@ -10,7 +10,6 @@ import com.smartcampus.exception.ResourceNotFoundException;
 import com.smartcampus.exception.UnauthorizedAccessException;
 import com.smartcampus.model.*;
 import com.smartcampus.repository.BookingRepository;
-import com.smartcampus.repository.NotificationRepository;
 import com.smartcampus.repository.ResourceRepository;
 import com.smartcampus.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +38,7 @@ class BookingServiceTest {
     @Mock private BookingRepository bookingRepository;
     @Mock private ResourceRepository resourceRepository;
     @Mock private UserRepository userRepository;
-    @Mock private NotificationRepository notificationRepository;
+    @Mock private NotificationService notificationService;
 
     @InjectMocks
     private BookingService bookingService;
@@ -109,6 +108,7 @@ class BookingServiceTest {
                 return b;
             });
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser));
+            when(userRepository.findByRole(Role.ADMIN)).thenReturn(List.of());
 
             BookingResponse result = bookingService.createBooking(validRequest, USER_ID);
 
@@ -257,6 +257,7 @@ class BookingServiceTest {
                 return b;
             });
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser));
+            when(userRepository.findByRole(Role.ADMIN)).thenReturn(List.of());
 
             BookingRequest afterExisting = BookingRequest.builder()
                     .resourceId("res-001")
@@ -340,12 +341,14 @@ class BookingServiceTest {
 
             assertThat(result.getStatus()).isEqualTo(BookingStatus.APPROVED);
 
-            ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
-            verify(notificationRepository).save(captor.capture());
-            Notification notification = captor.getValue();
-            assertThat(notification.getType()).isEqualTo(NotifType.BOOKING_APPROVED);
-            assertThat(notification.getUserId()).isEqualTo(USER_ID);
-            assertThat(notification.getMessage()).contains("Meeting Room A");
+            verify(notificationService).sendNotification(
+                    eq(USER_ID),
+                    contains("Meeting Room A"),
+                    eq(NotifType.BOOKING_APPROVED),
+                    eq(Severity.SUCCESS),
+                    eq("booking-001"),
+                    eq("BOOKING")
+            );
         }
 
         @Test
@@ -364,7 +367,7 @@ class BookingServiceTest {
 
             assertThat(result.getStatus()).isEqualTo(BookingStatus.REJECTED);
             assertThat(result.getRejectionReason()).isEqualTo("Room is being renovated next week");
-            verify(notificationRepository).save(any(Notification.class));
+            verify(notificationService).sendNotification(anyString(), anyString(), any(), any(), anyString(), anyString());
         }
 
         @Test
@@ -399,7 +402,7 @@ class BookingServiceTest {
             BookingResponse result = bookingService.cancelBooking("booking-003", USER_ID, false);
 
             assertThat(result.getStatus()).isEqualTo(BookingStatus.CANCELLED);
-            verify(notificationRepository, never()).save(any(Notification.class));
+            verify(notificationService, never()).sendNotification(anyString(), anyString(), any(), any(), anyString(), anyString());
         }
 
         @Test
@@ -420,9 +423,14 @@ class BookingServiceTest {
 
             bookingService.cancelBooking("booking-003", "admin-001", true);
 
-            ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
-            verify(notificationRepository).save(captor.capture());
-            assertThat(captor.getValue().getType()).isEqualTo(NotifType.BOOKING_CANCELLED);
+            verify(notificationService).sendNotification(
+                    eq(USER_ID),
+                    anyString(),
+                    eq(NotifType.BOOKING_CANCELLED),
+                    eq(Severity.ALERT),
+                    eq("booking-003"),
+                    eq("BOOKING")
+            );
         }
 
         @Test

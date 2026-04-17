@@ -3,10 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  LogOut, User as UserIcon, Settings, ChevronDown, Bell, Moon, Sun, BellRing
-} from 'lucide-react';
-import { notificationService } from '../services/api/notificationService';
+import { LogOut, User as UserIcon, Settings, ChevronDown, Bell, Moon, Sun, BellRing } from 'lucide-react';
 import { useNotifications } from '../hooks/useNotifications';
 import NotificationPanel from './notifications/NotificationPanel';
 
@@ -28,8 +25,7 @@ const Navbar = ({ leftSlot = null }) => {
     markAsRead: handleMarkRead, 
     markAllAsRead,
     deleteNotification: handleDeleteNotif,
-    deleteAll,
-    refresh: fetchNotifications
+    deleteAll
   } = useNotifications(currentUserId, token);
 
   useEffect(() => {

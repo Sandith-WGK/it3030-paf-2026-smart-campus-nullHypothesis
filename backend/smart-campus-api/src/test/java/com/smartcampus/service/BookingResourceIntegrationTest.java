@@ -6,7 +6,6 @@ import com.smartcampus.exception.BookingConflictException;
 import com.smartcampus.exception.InvalidBookingStateException;
 import com.smartcampus.model.*;
 import com.smartcampus.repository.BookingRepository;
-import com.smartcampus.repository.NotificationRepository;
 import com.smartcampus.repository.ResourceRepository;
 import com.smartcampus.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,7 +40,7 @@ class BookingResourceIntegrationTest {
     @Mock private BookingRepository bookingRepository;
     @Mock private ResourceRepository resourceRepository;
     @Mock private UserRepository userRepository;
-    @Mock private NotificationRepository notificationRepository;
+    @Mock private NotificationService notificationService;
 
     @InjectMocks
     private BookingService bookingService;
@@ -143,6 +142,7 @@ class BookingResourceIntegrationTest {
                 return b;
             });
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser));
+            when(userRepository.findByRole(Role.ADMIN)).thenReturn(List.of());
 
             BookingRequest request = BookingRequest.builder()
                     .resourceId("lab-101")
@@ -258,6 +258,7 @@ class BookingResourceIntegrationTest {
                 return b;
             });
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser));
+            when(userRepository.findByRole(Role.ADMIN)).thenReturn(List.of());
 
             BookingRequest request = BookingRequest.builder()
                     .resourceId("equip-P1")
@@ -435,6 +436,7 @@ class BookingResourceIntegrationTest {
                 return b;
             });
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser));
+            when(userRepository.findByRole(Role.ADMIN)).thenReturn(List.of());
 
             BookingRequest request = BookingRequest.builder()
                     .resourceId("res-enriched")

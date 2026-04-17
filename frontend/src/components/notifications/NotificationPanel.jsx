@@ -1,4 +1,5 @@
 import React from 'react';
+// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -49,6 +50,10 @@ export default function NotificationPanel({
 
   const handleNotificationClick = (notif) => {
     if (!notif || !notif.referenceId) return;
+
+    if (!notif.isRead && onMarkRead) {
+      onMarkRead(notif.id);
+    }
 
     if (notif.referenceType === 'BOOKING') {
       if (notif.type === 'BOOKING_CREATED') navigate('/admin/bookings');
