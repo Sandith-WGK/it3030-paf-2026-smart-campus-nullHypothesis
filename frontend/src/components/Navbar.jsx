@@ -7,56 +7,30 @@ import {
   LogOut, User as UserIcon, Settings, ChevronDown, Bell, Moon, Sun, BellRing
 } from 'lucide-react';
 import { notificationService } from '../services/api/notificationService';
+import { useNotifications } from '../hooks/useNotifications';
 import NotificationPanel from './notifications/NotificationPanel';
 
 const Navbar = ({ leftSlot = null }) => {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
   const notificationRef = useRef(null);
 
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
-  const [loadingNotifs, setLoadingNotifs] = useState(false);
-
+  
   const currentUserId = user?.userId || user?.id || user?.sub;
 
-  useEffect(() => {
-    if (currentUserId) {
-      fetchNotifications();
-    }
-  }, [currentUserId]);
-
-  const fetchNotifications = async () => {
-    try {
-      setLoadingNotifs(true);
-      const data = await notificationService.getUserNotifications(currentUserId);
-      setNotifications(data || []);
-    } catch (err) {
-      console.error('Failed to fetch notifications:', err);
-    } finally {
-      setLoadingNotifs(false);
-    }
-  };
-
-  const handleMarkRead = async (id) => {
-    try {
-      await notificationService.markAsRead(id);
-      setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
-    } catch (err) {
-      console.error('Failed to mark as read:', err);
-    }
-  };
-
-  const handleDeleteNotif = async (id) => {
-    try {
-      await notificationService.deleteNotification(id);
-      setNotifications(prev => prev.filter(n => n.id !== id));
-    } catch (err) {
-      console.error('Failed to delete notification:', err);
-    }
-  };
+  const { 
+    notifications, 
+    loading: loadingNotifs, 
+    connected,
+    markAsRead: handleMarkRead, 
+    markAllAsRead,
+    deleteNotification: handleDeleteNotif,
+    deleteAll,
+    refresh: fetchNotifications
+  } = useNotifications(currentUserId, token);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -94,24 +68,38 @@ const Navbar = ({ leftSlot = null }) => {
         {/* Notifications */}
         <div className="relative" ref={notificationRef}>
           <button 
-            onClick={() => setIsNotifOpen(!isNotifOpen)}
+            onClick={() => {
+              const nextState = !isNotifOpen;
+              setIsNotifOpen(nextState);
+              if (nextState) {
+                markAllAsRead(); // Mark all as read when opening
+              }
+            }}
             className={`p-2.5 rounded-xl transition-all relative group ${
               isNotifOpen 
                 ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400' 
                 : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100'
             }`}
           >
-            {notifications.some(n => !n.isRead) ? (
-              <BellRing size={22} className="animate-pulse" />
+            {notifications?.some(n => n && !n.isRead) ? (
+              <BellRing size={22} className="text-rose-500 animate-bounce" />
             ) : (
               <Bell size={22} />
             )}
             
-            {notifications.filter(n => !n.isRead).length > 0 && (
+            {notifications?.filter(n => n && !n.isRead).length > 0 && (
               <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white dark:border-zinc-900 shadow-sm">
-                {notifications.filter(n => !n.isRead).length}
+                {notifications.filter(n => n && !n.isRead).length}
               </span>
             )}
+
+            {/* Connection Status Indicator */}
+            <div 
+              className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white dark:border-zinc-900 shadow-sm transition-colors duration-500 ${
+                connected ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
+              }`}
+              title={connected ? 'Real-time connected' : 'Connecting or disconnected...'}
+            ></div>
           </button>
 
           <AnimatePresence>
@@ -120,6 +108,8 @@ const Navbar = ({ leftSlot = null }) => {
                 notifications={notifications}
                 onMarkRead={handleMarkRead}
                 onDelete={handleDeleteNotif}
+                onDeleteAll={deleteAll}
+                userRole={user?.role}
                 onClose={() => setIsNotifOpen(false)}
                 loading={loadingNotifs}
               />

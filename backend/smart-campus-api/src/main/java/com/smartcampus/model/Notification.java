@@ -3,6 +3,7 @@
  */
 package com.smartcampus.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -34,7 +35,12 @@ public class Notification {
     private String message; // human-readable e.g. "Your booking was approved"
 
     @Builder.Default
+    @JsonProperty("isRead")
     private boolean isRead = false;
+
+    @Builder.Default
+    @JsonProperty("isArchived")
+    private boolean isArchived = false;
 
     private String referenceId; // the booking or ticket id this is about
 

@@ -14,4 +14,7 @@ public interface UserRepository extends MongoRepository<User, String> {
 
     // Check if email already registered
     boolean existsByEmail(String email);
+
+    // Find users by role
+    java.util.List<User> findByRole(com.smartcampus.model.Role role);
 }

@@ -22,19 +22,28 @@ public class NotificationController {
     private final NotificationService notificationService;
 
     /**
-     * Get all notifications for the authenticated user.
+     * Get ALL notifications (History) for the authenticated user.
      */
-    @GetMapping("/user/{userId}")
-    @PreAuthorize("hasRole('ADMIN') or #userId == principal.userId")
-    public ResponseEntity<List<NotificationDto>> getUserNotifications(@PathVariable String userId) {
+    @GetMapping("/user/{userId}/history")
+    @PreAuthorize("hasRole('ADMIN') or #userId == principal.id")
+    public ResponseEntity<List<NotificationDto>> getUserNotificationHistory(@PathVariable String userId) {
         return ResponseEntity.ok(notificationService.getNotificationsForUser(userId));
     }
 
     /**
-     * Get unread count for the authenticated user.
+     * Get only ACTIVE (non-archived) notifications for the quick panel.
+     */
+    @GetMapping("/user/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or #userId == principal.id")
+    public ResponseEntity<List<NotificationDto>> getActiveNotifications(@PathVariable String userId) {
+        return ResponseEntity.ok(notificationService.getActiveNotificationsForUser(userId));
+    }
+
+    /**
+     * Get active unread count for the authenticated user.
      */
     @GetMapping("/user/{userId}/unread-count")
-    @PreAuthorize("hasRole('ADMIN') or #userId == principal.userId")
+    @PreAuthorize("hasRole('ADMIN') or #userId == principal.id")
     public ResponseEntity<Long> getUnreadCount(@PathVariable String userId) {
         return ResponseEntity.ok(notificationService.getUnreadCount(userId));
     }
@@ -50,6 +59,16 @@ public class NotificationController {
     }
 
     /**
+     * Mark all active unread notifications for the current user as read.
+     */
+    @PutMapping("/user/{userId}/mark-all-read")
+    @PreAuthorize("hasRole('ADMIN') or #userId == principal.id")
+    public ResponseEntity<Void> markAllAsRead(@PathVariable String userId) {
+        notificationService.markAllAsRead(userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
      * Delete a specific notification.
      */
     @DeleteMapping("/{id}")
@@ -57,6 +76,26 @@ public class NotificationController {
     public ResponseEntity<Void> deleteNotification(@PathVariable String id, 
                                                    @AuthenticationPrincipal UserPrincipal principal) {
         notificationService.deleteNotification(id, principal.getUserId());
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Archive all active notifications for the current user (Soft Clear).
+     */
+    @DeleteMapping("/user/{userId}")
+    @PreAuthorize("hasRole('ADMIN') or #userId == principal.id")
+    public ResponseEntity<Void> deleteAllNotifications(@PathVariable String userId) {
+        notificationService.archiveAllNotifications(userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Hard Delete all notifications for the current user.
+     */
+    @DeleteMapping("/user/{userId}/hard")
+    @PreAuthorize("hasRole('ADMIN') or #userId == principal.id")
+    public ResponseEntity<Void> hardDeleteAllNotifications(@PathVariable String userId) {
+        notificationService.deleteAllNotifications(userId);
         return ResponseEntity.noContent().build();
     }
 }

@@ -47,7 +47,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable()) // Stateless REST API
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .authorizeHttpRequests(authz -> authz
-                .requestMatchers("/api/v1/auth/**", "/oauth2/**", "/login/**", "/error").permitAll()
+                .requestMatchers("/api/v1/auth/**", "/oauth2/**", "/login/**", "/error", "/ws/**").permitAll()
                 .anyRequest().authenticated()
             )
             ;

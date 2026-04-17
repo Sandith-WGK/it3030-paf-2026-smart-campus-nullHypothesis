@@ -50,7 +50,7 @@ public class JwtProvider {
                 .subject(userPrincipal.getUserId())
                 .claim("email", userPrincipal.getEmail())
                 .claim("role", role)
-                .claim("name", userPrincipal.getName())
+                .claim("name", userPrincipal.getDisplayName())
                 .claim("provider", userPrincipal.getProvider())
                 .claim("picture", pictureUrl)
                 .issuedAt(new Date())

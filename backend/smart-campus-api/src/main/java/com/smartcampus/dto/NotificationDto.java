@@ -6,6 +6,7 @@ package com.smartcampus.dto;
 import com.smartcampus.model.NotifType;
 import com.smartcampus.model.Notification;
 import com.smartcampus.model.Severity;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,6 +24,7 @@ public class NotificationDto {
     private NotifType type;
     private Severity severity;
     private String message;
+    @JsonProperty("isRead")
     private boolean isRead;
     private String referenceId;
     private String referenceType;

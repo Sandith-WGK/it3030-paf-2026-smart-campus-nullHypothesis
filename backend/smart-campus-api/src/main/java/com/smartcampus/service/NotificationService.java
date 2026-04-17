@@ -14,6 +14,7 @@ import com.smartcampus.repository.NotificationRepository;
 import com.smartcampus.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -26,6 +27,7 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
+    private final SimpMessagingTemplate messagingTemplate;
 
     /**
      * Generic method to trigger a notification from any service.
@@ -59,14 +61,43 @@ public class NotificationService {
                 .isRead(false)
                 .build();
         
-        notificationRepository.save(notification);
+        Notification saved = notificationRepository.save(notification);
+        
+        // Push in real-time via WebSockets (Double Delivery strategy)
+        try {
+            // Path 1: Private queue (Direct)
+            messagingTemplate.convertAndSendToUser(
+                userId, 
+                "/queue/notifications", 
+                NotificationDto.from(saved)
+            );
+            
+            // Path 2: Broadcast topic (Fallback - filtered by frontend)
+            messagingTemplate.convertAndSend(
+                "/topic/notifications",
+                NotificationDto.from(saved)
+            );
+
+            log.info("WebSocket: Notification pushed for user {} (Direct + Broadcast)", userId);
+        } catch (Exception e) {
+            log.error("WebSocket: Failed to push notification {}: {}", saved.getId(), e.getMessage());
+        }
     }
 
     /**
-     * Fetch all notifications for a specific user, ordered by newest first.
+     * Fetch all notifications for a specific user, ordered by newest first. (FOR HISTORY PAGE)
      */
     public List<NotificationDto> getNotificationsForUser(String userId) {
         return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                .map(NotificationDto::from)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Fetch only active (non-archived) notifications. (FOR QUICK PANEL)
+     */
+    public List<NotificationDto> getActiveNotificationsForUser(String userId) {
+        return notificationRepository.findByUserIdAndIsArchivedFalseOrderByCreatedAtDesc(userId).stream()
                 .map(NotificationDto::from)
                 .collect(Collectors.toList());
     }
@@ -101,9 +132,41 @@ public class NotificationService {
     }
 
     /**
-     * Get the count of unread notifications for a user.
+     * Mark all active unread notifications for a user as read.
+     */
+    public void markAllAsRead(String userId) {
+        List<Notification> unread = notificationRepository.findByUserIdAndIsReadFalseAndIsArchivedFalse(userId);
+        if (!unread.isEmpty()) {
+            unread.forEach(n -> n.setRead(true));
+            notificationRepository.saveAll(unread);
+            log.info("Marked {} active notifications as read for user {}", unread.size(), userId);
+        }
+    }
+
+    /**
+     * Archive all active notifications for a user (Soft Clear).
+     */
+    public void archiveAllNotifications(String userId) {
+        List<Notification> active = notificationRepository.findByUserIdAndIsArchivedFalse(userId);
+        if (!active.isEmpty()) {
+            active.forEach(n -> n.setArchived(true));
+            notificationRepository.saveAll(active);
+            log.info("Archived {} notifications for user {}", active.size(), userId);
+        }
+    }
+
+    /**
+     * Delete all notifications for a user (Permanent Clear).
+     */
+    public void deleteAllNotifications(String userId) {
+        notificationRepository.deleteByUserId(userId);
+        log.info("Deleted all notifications for user {}", userId);
+    }
+
+    /**
+     * Get the count of active unread notifications for a user.
      */
     public long getUnreadCount(String userId) {
-        return notificationRepository.countByUserIdAndIsReadFalse(userId);
+        return notificationRepository.countByUserIdAndIsReadFalseAndIsArchivedFalse(userId);
     }
 }

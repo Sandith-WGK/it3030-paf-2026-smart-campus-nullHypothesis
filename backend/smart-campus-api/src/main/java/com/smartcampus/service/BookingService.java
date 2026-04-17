@@ -58,6 +58,22 @@ public class BookingService {
 
         Booking saved = bookingRepository.save(booking);
         User user = userRepository.findById(userId).orElse(null);
+        
+        // Notify all admins about the new booking
+        List<User> admins = userRepository.findByRole(Role.ADMIN);
+        String userName = user != null ? user.getName() : "A user";
+        String resourceName = resource != null ? resource.getName() : "resource";
+        for (User admin : admins) {
+            notificationService.sendNotification(
+                    admin.getId(),
+                    String.format("%s has requested a booking for %s on %s", userName, resourceName, saved.getDate()),
+                    NotifType.BOOKING_CREATED,
+                    Severity.INFO,
+                    saved.getId(),
+                    "BOOKING"
+            );
+        }
+        
         return BookingResponse.from(saved, resource, user);
     }
 
