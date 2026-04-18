@@ -90,7 +90,6 @@ const AdminResources = () => {
   const navigate = useNavigate();
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [toast, setToast] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState(null);
@@ -114,11 +113,9 @@ const AdminResources = () => {
   const fetchResources = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
       const response = await resourceApi.getAll();
       setResources(response.data?.data || response.data || []);
-    } catch (err) {
-      setError('Failed to load resources. Please try again.');
+    } catch {
       setToast({ type: 'error', message: 'Failed to load resources' });
     } finally {
       setLoading(false);
@@ -141,7 +138,7 @@ const AdminResources = () => {
         message: `Resource status changed to ${newStatus === 'ACTIVE' ? 'Active' : 'Out of Service'}` 
       });
       fetchResources(); // Refresh the list
-    } catch (err) {
+    } catch {
       setToast({ type: 'error', message: 'Failed to update resource status' });
     } finally {
       setTogglingStatus(null);
@@ -162,7 +159,7 @@ const AdminResources = () => {
       setToast({ type: 'success', message: 'Resource deleted successfully!' });
       setDeleteTarget(null);
       fetchResources();
-    } catch (err) {
+    } catch {
       setToast({ type: 'error', message: 'Failed to delete resource' });
     } finally {
       setDeleting(false);
@@ -179,7 +176,7 @@ const AdminResources = () => {
       setExporting(true);
       await resourceApi.exportResources();
       setToast({ type: 'success', message: 'Resources exported successfully!' });
-    } catch (err) {
+    } catch {
       setToast({ type: 'error', message: 'Failed to export resources' });
     } finally {
       setExporting(false);
@@ -200,8 +197,8 @@ const AdminResources = () => {
       setShowImportModal(false);
       setImportFile(null);
       fetchResources();
-    } catch (err) {
-      setToast({ type: 'error', message: err.response?.data?.message || 'Failed to import resources' });
+    } catch {
+      setToast({ type: 'error', message: 'Failed to import resources' });
     } finally {
       setImporting(false);
     }

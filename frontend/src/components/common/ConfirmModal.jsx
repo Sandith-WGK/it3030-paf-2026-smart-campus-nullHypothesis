@@ -1,5 +1,4 @@
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { AlertTriangle, X } from 'lucide-react';
 
 /**
@@ -48,22 +47,14 @@ const ConfirmModal = ({
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+          {/* Backdrop - removed motion wrapper */}
+          <div
             onClick={onClose}
             className="absolute inset-0 bg-black/50"
           />
           
-          {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="relative bg-white dark:bg-zinc-900 rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden"
-          >
+          {/* Modal - removed motion wrapper */}
+          <div className="relative bg-white dark:bg-zinc-900 rounded-xl shadow-xl max-w-md w-full mx-4 overflow-hidden">
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-800">
               <div className="flex items-center gap-3">
@@ -112,7 +103,7 @@ const ConfirmModal = ({
                 )}
               </button>
             </div>
-          </motion.div>
+          </div>
         </div>
       )}
     </AnimatePresence>
