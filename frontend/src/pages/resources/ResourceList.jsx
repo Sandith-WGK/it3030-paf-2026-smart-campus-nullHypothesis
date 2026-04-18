@@ -301,6 +301,7 @@ const ResourceList = () => {
                         value={filters.minCapacity}
                         onChange={(e) => handleFilterChange('minCapacity', e.target.value)}
                         placeholder="e.g., 30"
+                        min="0"
                         className="w-full pl-10 pr-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 dark:bg-zinc-800 dark:text-zinc-100"
                       />
                     </div>
