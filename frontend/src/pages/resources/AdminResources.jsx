@@ -165,7 +165,7 @@ const AdminResources = () => {
   // Import preview states
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewData, setPreviewData] = useState([]);
- 
+  //const [parsingPreview, setParsingPreview] = useState(false);
 
   // Delete confirmation modal
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -200,7 +200,7 @@ const AdminResources = () => {
     
     if (!file) return;
     
-    setParsingPreview(true);
+    //setParsingPreview(true);
     try {
       const text = await file.text();
       console.log("Raw CSV text length:", text.length);
@@ -242,7 +242,7 @@ const AdminResources = () => {
       console.error("Parse error:", err);
       setToast({ type: 'error', message: 'Failed to parse CSV file: ' + err.message });
     } finally {
-      setParsingPreview(false);
+      //setParsingPreview(false);
     }
   };
 
