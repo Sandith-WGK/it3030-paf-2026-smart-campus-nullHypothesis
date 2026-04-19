@@ -16,11 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
+import java.util.HashMap;
+import java.util.Map;
 
-/**
- * REST controller for Import/Export operations (Module A - Facilities & Assets Catalogue).
- * Admin only endpoints for CSV import/export.
- */
 @RestController
 @RequestMapping("/api/v1/admin")
 @RequiredArgsConstructor
@@ -28,11 +26,6 @@ public class ImportExportController {
 
     private final ImportExportService importExportService;
 
-    /**
-     * GET /api/v1/admin/export/resources
-     * Export all resources to CSV file
-     * Admin only
-     */
     @GetMapping("/export/resources")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<byte[]> exportResources() {
@@ -46,36 +39,51 @@ public class ImportExportController {
                 .body(csvData);
     }
 
-    /**
-     * POST /api/v1/admin/import/resources
-     * Import resources from CSV file
-     * Admin only
-     */
     @PostMapping("/import/resources")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<String>> importResources(
+    public ResponseEntity<Map<String, Object>> importResources(
             @RequestParam("file") MultipartFile file) {
         
+        Map<String, Object> response = new HashMap<>();
+        
         if (file.isEmpty()) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Please select a CSV file to upload"));
+            response.put("success", false);
+            response.put("message", "Please select a CSV file to upload");
+            return ResponseEntity.badRequest().body(response);
         }
         
-        // Validate file type
         String contentType = file.getContentType();
         if (contentType == null || !contentType.equals("text/csv")) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Only CSV files are allowed"));
+            response.put("success", false);
+            response.put("message", "Only CSV files are allowed");
+            return ResponseEntity.badRequest().body(response);
         }
         
         try {
-            int importedCount = importExportService.importResourcesFromCSV(file);
-            String message = String.format("Successfully imported %d resources", importedCount);
-            return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(ApiResponse.success(message, message));
+            ImportExportService.ImportResult result = importExportService.importResourcesFromCSVWithDetails(file);
+            
+            response.put("success", result.getImportedCount() > 0);
+            response.put("message", String.format(
+                "Import completed: %d imported successfully, %d skipped",
+                result.getImportedCount(),
+                result.getSkippedCount()
+            ));
+            response.put("importedCount", result.getImportedCount());
+            response.put("skippedCount", result.getSkippedCount());
+            response.put("totalRows", result.getTotalRows());
+            response.put("skippedReasons", result.getSkippedReasons());
+            
+            if (result.getImportedCount() == 0) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            } else if (result.getSkippedCount() > 0) {
+                return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT).body(response);
+            } else {
+                return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            }
         } catch (Exception e) {
-            return ResponseEntity.badRequest()
-                    .body(ApiResponse.error("Import failed: " + e.getMessage()));
+            response.put("success", false);
+            response.put("message", "Import failed: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
         }
     }
 }

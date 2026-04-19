@@ -2,7 +2,6 @@ package com.smartcampus.service;
 
 import com.opencsv.CSVReader;
 import com.opencsv.CSVWriter;
-import com.opencsv.exceptions.CsvException;
 import com.smartcampus.model.Resource;
 import com.smartcampus.model.ResourceStatus;
 import com.smartcampus.model.ResourceType;
@@ -17,7 +16,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Service for importing and exporting resources to/from CSV format.
@@ -28,6 +30,7 @@ import java.util.List;
 public class ImportExportService {
 
     private final ResourceRepository resourceRepository;
+    private final ResourceService resourceService;
 
     /**
      * Export all resources to CSV format
@@ -71,11 +74,26 @@ public class ImportExportService {
     }
 
     /**
-     * Import resources from CSV file
+     * Import resources from CSV file - Skips duplicates and imports valid ones
      * @param file MultipartFile containing CSV data
      * @return Number of resources imported
      */
     public int importResourcesFromCSV(MultipartFile file) {
+        ImportResult result = importResourcesFromCSVWithDetails(file);
+        return result.getImportedCount();
+    }
+
+    /**
+     * Import resources from CSV file with detailed results
+     * @param file MultipartFile containing CSV data
+     * @return ImportResult with details about imported and skipped records
+     */
+    public ImportResult importResourcesFromCSVWithDetails(MultipartFile file) {
+        List<String> skippedReasons = new ArrayList<>();
+        List<Resource> importedResources = new ArrayList<>();
+        Set<String> processedNames = new HashSet<>();
+        int totalRows = 0;
+        
         try (CSVReader reader = new CSVReader(new InputStreamReader(file.getInputStream()))) {
             List<String[]> rows = reader.readAll();
             
@@ -83,28 +101,61 @@ public class ImportExportService {
                 throw new IllegalArgumentException("CSV file is empty");
             }
             
-            // Skip header row (first row)
-            int importedCount = 0;
+            totalRows = rows.size() - 1; // Excluding header
+            
+            // Process each row
             for (int i = 1; i < rows.size(); i++) {
                 String[] row = rows.get(i);
                 
                 // Skip empty rows
-                if (row.length < 5) {
-                    log.warn("Skipping incomplete row {}", i + 1);
+                if (row.length < 5 || (row[1] == null && row[2] == null && row[4] == null)) {
+                    skippedReasons.add("Row " + (i + 1) + ": Empty row - skipped");
                     continue;
                 }
                 
                 try {
+                    // Parse resource from row
                     Resource resource = parseResourceFromRow(row);
-                    resourceRepository.save(resource);
-                    importedCount++;
+                    
+                    // Trim name
+                    if (resource.getName() != null) {
+                        resource.setName(resource.getName().trim());
+                    }
+                    
+                    // Check for duplicate within the same CSV file
+                    if (processedNames.contains(resource.getName())) {
+                        skippedReasons.add("Row " + (i + 1) + ": Duplicate name '" + resource.getName() + "' within CSV file - skipped");
+                        continue;
+                    }
+                    
+                    // Check if name already exists in database
+                    if (resourceRepository.existsByName(resource.getName())) {
+                        skippedReasons.add("Row " + (i + 1) + ": Resource '" + resource.getName() + "' already exists in database - skipped");
+                        continue;
+                    }
+                    
+                    // Mark as processed
+                    processedNames.add(resource.getName());
+                    
+                    // Validate and save using createResource (which has all validations)
+                    Resource saved = resourceService.createResource(resource);
+                    importedResources.add(saved);
+                    log.info("Imported resource: {}", resource.getName());
+                    
                 } catch (Exception e) {
+                    String name = getResourceNameFromRow(row);
+                    skippedReasons.add("Row " + (i + 1) + " (" + name + "): " + e.getMessage());
                     log.warn("Error importing row {}: {}", i + 1, e.getMessage());
                 }
             }
             
-            log.info("Imported {} resources from CSV", importedCount);
-            return importedCount;
+            int importedCount = importedResources.size();
+            int skippedCount = skippedReasons.size();
+            
+            log.info("Import completed: {} imported, {} skipped out of {} total rows", 
+                    importedCount, skippedCount, totalRows);
+            
+            return new ImportResult(importedCount, skippedCount, totalRows, skippedReasons);
             
         } catch (Exception e) {
             log.error("Error importing resources from CSV", e);
@@ -172,5 +223,48 @@ public class ImportExportService {
         }
         
         return resource;
+    }
+
+    /**
+     * Get resource name from row for error messages
+     */
+    private String getResourceNameFromRow(String[] row) {
+        if (row.length > 1 && row[1] != null && !row[1].trim().isEmpty()) {
+            return row[1].trim();
+        }
+        return "Unknown";
+    }
+
+    /**
+     * Inner class to hold import results
+     */
+    public static class ImportResult {
+        private final int importedCount;
+        private final int skippedCount;
+        private final int totalRows;
+        private final List<String> skippedReasons;
+        
+        public ImportResult(int importedCount, int skippedCount, int totalRows, List<String> skippedReasons) {
+            this.importedCount = importedCount;
+            this.skippedCount = skippedCount;
+            this.totalRows = totalRows;
+            this.skippedReasons = skippedReasons;
+        }
+        
+        public int getImportedCount() {
+            return importedCount;
+        }
+        
+        public int getSkippedCount() {
+            return skippedCount;
+        }
+        
+        public int getTotalRows() {
+            return totalRows;
+        }
+        
+        public List<String> getSkippedReasons() {
+            return skippedReasons;
+        }
     }
 }

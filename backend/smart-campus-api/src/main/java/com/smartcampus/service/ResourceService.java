@@ -10,7 +10,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Service layer for Resource management (Module A - Facilities & Assets Catalogue).
@@ -83,6 +86,11 @@ public class ResourceService {
      * @throws IllegalArgumentException if validation fails or duplicate name
      */
     public Resource createResource(Resource resource) {
+        // Trim name first
+        if (resource.getName() != null) {
+            resource.setName(resource.getName().trim());
+        }
+        
         // ✅ UNIQUE NAME VALIDATION - Check if name already exists
         if (resourceRepository.existsByName(resource.getName())) {
             throw new IllegalArgumentException(
@@ -119,6 +127,11 @@ public class ResourceService {
      */
     public Resource updateResource(String id, Resource updatedResource) {
         Resource existingResource = getResourceById(id);
+
+        // Trim name if present
+        if (updatedResource.getName() != null) {
+            updatedResource.setName(updatedResource.getName().trim());
+        }
 
         // ✅ UNIQUE NAME VALIDATION - Check if name is taken by another resource
         // First check if the name has actually changed
