@@ -5,11 +5,15 @@ import Layout from '../../components/layout/Layout';
 import BookingForm from '../../components/booking/BookingForm';
 import Toast from '../../components/common/Toast';
 import bookingService from '../../services/api/bookingService';
+import { useAuth } from '../../context/AuthContext';
 
 export default function NewBooking() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const rebookId = searchParams.get('rebook');
+  const { user } = useAuth();
+  // JWT may encode the user id as userId, sub, or id
+  const currentUserId = user?.userId ?? user?.sub ?? user?.id ?? null;
 
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState(null);
@@ -92,6 +96,7 @@ export default function NewBooking() {
             onSubmit={handleSubmit}
             loading={loading}
             submitLabel="Submit Booking Request"
+            currentUserId={currentUserId}
           />
         </div>
       </div>

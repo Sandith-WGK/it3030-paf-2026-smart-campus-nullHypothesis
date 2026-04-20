@@ -1,6 +1,8 @@
 package com.smartcampus.service;
 
+import com.smartcampus.model.NotifType;
 import com.smartcampus.model.Role;
+import com.smartcampus.model.Severity;
 import com.smartcampus.model.User;
 import com.smartcampus.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,12 +21,15 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
+    private final NotificationService notificationService;
 
     @Autowired
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, EmailService emailService) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, 
+                       EmailService emailService, NotificationService notificationService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
+        this.notificationService = notificationService;
     }
 
     public List<User> getAllUsers() {
@@ -115,7 +120,40 @@ public class UserService {
                 user.setPassword(passwordEncoder.encode(password));
             }
             
-            return userRepository.save(user);
+            // Security Notification Trigger
+            boolean emailChanged = StringUtils.hasText(email) && !email.equalsIgnoreCase(user.getEmail());
+            boolean passwordChanged = StringUtils.hasText(password);
+
+            User savedUser = userRepository.save(user);
+
+            if (emailChanged || passwordChanged) {
+                if (requireEmailReverification) {
+                    // SELF UPDATE -> Notify Admins
+                    List<User> admins = userRepository.findByRole(Role.ADMIN);
+                    for (User admin : admins) {
+                        notificationService.sendNotification(
+                            admin.getId(), 
+                            "Security: User " + user.getName() + " updated their credentials (" + (emailChanged ? "Email" : "") + (emailChanged && passwordChanged ? " & " : "") + (passwordChanged ? "Password" : "") + ")",
+                            NotifType.SECURITY_UPDATE,
+                            Severity.ALERT,
+                            user.getId(),
+                            "USER"
+                        );
+                    }
+                } else {
+                    // ADMIN UPDATE -> Notify User
+                    notificationService.sendNotification(
+                        user.getId(),
+                        "Security: An administrator has updated your account credentials. If this was not you, please contact support immediately.",
+                        NotifType.SECURITY_UPDATE,
+                        Severity.ALERT,
+                        id,
+                        "USER"
+                    );
+                }
+            }
+
+            return savedUser;
         }
         throw new RuntimeException("User not found with id: " + id);
     }

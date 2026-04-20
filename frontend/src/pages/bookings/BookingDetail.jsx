@@ -99,7 +99,8 @@ export default function BookingDetail() {
 
   if (!booking) return null;
 
-  const canEdit = booking.status === 'PENDING';
+  const today = new Date().toISOString().split('T')[0];
+  const canEdit = booking.status === 'PENDING' && booking.date >= today;
   const canCancel = booking.status === 'APPROVED';
   const canDelete =
     admin || booking.status === 'PENDING' || booking.status === 'CANCELLED';
@@ -176,7 +177,11 @@ export default function BookingDetail() {
           {/* Timeline */}
           {sameResourceBookings.length > 0 && (
             <div className="px-6 pb-5 border-t border-zinc-100 dark:border-zinc-800 pt-5">
-              <BookingTimeline bookings={sameResourceBookings} highlightId={booking.id} />
+              <BookingTimeline
+                bookings={sameResourceBookings.filter((b) => b.status === 'APPROVED')}
+                highlightId={booking.id}
+                slotBooked={false}
+              />
             </div>
           )}
 
