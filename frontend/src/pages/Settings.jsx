@@ -168,7 +168,7 @@ export default function Settings() {
         <div className="text-center pb-12">
           <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em]">Smart Campus Operations Hub v0.4.2</p>
         </div>
-      </motion.div>
+      </motion.motion.div>
     </Layout>
   );
 }
