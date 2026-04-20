@@ -473,7 +473,7 @@ export default function AdminDashboard() {
                     <tr key={user.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <img src={user.picture || `https://ui-avatars.com/api/?name=${user.name || user.email}&background=random`} alt="" className="w-9 h-9 rounded-full object-cover" />
+                          <img src={user.picture || `https://ui-avatars.com/api/?name=${user.name || user.email}&background=random`} alt="" referrerPolicy="no-referrer" className="w-9 h-9 rounded-full object-cover" />
                           <div>
                             <div className="font-semibold text-zinc-900 dark:text-zinc-100">{user.name || 'Unnamed User'}</div>
                             <div className="text-zinc-500 text-xs">{user.email}</div>
@@ -575,6 +575,7 @@ export default function AdminDashboard() {
                   <div className="relative group">
                     <img 
                       src={editingUser?.picture || `https://ui-avatars.com/api/?name=${editingUser?.name || editingUser?.email}&background=random`} 
+                      referrerPolicy="no-referrer"
                       className="w-24 h-24 rounded-full object-cover border-4 border-violet-100 dark:border-violet-900/30 shadow-lg group-hover:opacity-75 transition-all"
                     />
                     <label className="absolute inset-0 flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity bg-black/20 rounded-full">

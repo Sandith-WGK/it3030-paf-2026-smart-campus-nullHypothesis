@@ -1,5 +1,6 @@
 package com.smartcampus.service;
 
+import com.smartcampus.model.User;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -71,6 +72,22 @@ public class EmailService {
         }
     }
 
+    public void sendNotificationEmail(User user, String subject, String messageText) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setTo(user.getEmail());
+            helper.setFrom(senderEmail, "Smart Campus");
+            helper.setSubject("Smart Campus - " + subject);
+            helper.setText(buildNotificationEmailHtml(user.getName(), messageText), true);
+            attachLogoIfPresent(helper);
+
+            mailSender.send(message);
+        } catch (MessagingException | UnsupportedEncodingException e) {
+            throw new RuntimeException("Failed to send notification email", e);
+        }
+    }
+
     private void attachLogoIfPresent(MimeMessageHelper helper) throws MessagingException {
         ClassPathResource logo = new ClassPathResource(LOGO_CLASSPATH);
         if (logo.exists()) {
@@ -127,6 +144,35 @@ public class EmailService {
                   <p style="margin:8px 0 0 0;color:#666;font-size:13px;">If this login was not initiated by you, please change your password immediately.</p>
                 </div>
                 """.formatted(logoTag, otp);
+    }
+
+    private String buildNotificationEmailHtml(String userName, String message) {
+        String logoTag = buildLogoTag();
+        return """
+                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; background-color: #f8fafc; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0;">
+                    <div style="background: linear-gradient(135deg, #6d28d9 0%%, #4c1d95 100%%); padding: 40px 20px; text-align: center;">
+                        %s
+                    </div>
+                    <div style="padding: 40px; background-color: #ffffff;">
+                        <h2 style="margin-top: 0; color: #1e293b; font-size: 24px; font-weight: 700;">Hello %s,</h2>
+                        <p style="color: #475569; font-size: 16px; line-height: 1.6; margin-bottom: 24px;">You have a new update from the Smart Campus Operations Hub:</p>
+                        <div style="background-color: #f5f3ff; border-left: 4px solid #7c3aed; padding: 24px; margin-bottom: 32px; border-radius: 0 12px 12px 0;">
+                            <p style="margin: 0; color: #5b21b6; font-size: 18px; font-weight: 500; line-height: 1.5;">%s</p>
+                        </div>
+                        <div style="text-align: center; margin-bottom: 32px;">
+                            <a href="http://localhost:5173/notifications" style="background-color: #7c3aed; color: #ffffff; padding: 14px 28px; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 16px; display: inline-block; transition: background-color 0.3s ease;">View Dashboard</a>
+                        </div>
+                        <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 24px;" />
+                        <p style="color: #94a3b8; font-size: 13px; line-height: 1.5; margin-bottom: 0;">
+                            You are receiving this email because you have notifications enabled in your Smart Campus settings. 
+                            To manage your preferences, please visit the <a href="http://localhost:5173/settings" style="color: #7c3aed; text-decoration: none;">Settings</a> page.
+                        </p>
+                    </div>
+                    <div style="background-color: #f1f5f9; padding: 20px; text-align: center;">
+                        <p style="color: #64748b; font-size: 12px; margin: 0;">&copy; 2026 Smart Campus Operations Hub. All rights reserved.</p>
+                    </div>
+                </div>
+                """.formatted(logoTag, userName, message);
     }
 
     private String buildLogoTag() {

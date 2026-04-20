@@ -48,6 +48,7 @@ export const AuthProvider = ({ children }) => {
           // Ignore invalid non-url values (prevents broken <img> src like "profile")
           decodedUser.picture = '';
         }
+        console.log('[DEBUG] AuthContext -> Setting user from DECODED TOKEN:', decodedUser);
         setUser(decodedUser); // eslint-disable-line react-hooks/set-state-in-effect
         setIsAuthenticated(true);
 
@@ -60,6 +61,7 @@ export const AuthProvider = ({ children }) => {
               try {
                 const freshUser = await userService.getUserById(id);
                 if (isValidPictureSrc(freshUser?.picture)) localStorage.setItem('user_pic', freshUser.picture);
+                console.log('[DEBUG] AuthContext -> Merging fresh user from BACKEND:', freshUser);
                 setUser(prev => ({ ...prev, ...freshUser }));
               } catch {
                 // Non-fatal: profile will fall back to avatar placeholder
@@ -114,12 +116,33 @@ export const AuthProvider = ({ children }) => {
     setToken(newToken);
   }, []);
 
+  const updateUser = useCallback((newData) => {
+    setUser(prev => {
+      if (!prev) return null;
+      
+      // Deep merge for preferences to ensure we don't lose existing fields
+      const updatedPreferences = newData.preferences 
+        ? { ...(prev.preferences || {}), ...newData.preferences }
+        : prev.preferences;
+
+      console.log('[DEBUG] AuthContext -> Performing Deep Merge Update. Changes:', newData);
+      const updated = { ...prev, ...newData, preferences: updatedPreferences };
+      console.log('[DEBUG] AuthContext -> Final Updated User Object:', updated);
+      
+      // Sync large fields to localStorage if they were updated
+      if (isValidPictureSrc(newData.picture)) {
+        localStorage.setItem('user_pic', newData.picture);
+      }
+      return updated;
+    });
+  }, []);
+
   const logout = useCallback(() => {
     setToken(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated, login, logout, updateUser, loading }}>
       {children}
     </AuthContext.Provider>
   );

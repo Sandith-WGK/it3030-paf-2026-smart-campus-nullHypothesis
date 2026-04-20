@@ -12,9 +12,11 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api/v1/users")
+@Slf4j
 public class UserController {
 
     private final UserService userService;
@@ -70,6 +72,13 @@ public class UserController {
         );
         String newToken = jwtProvider.generateTokenFromUser(updated);
         return ResponseEntity.ok(new AuthResponse(newToken, updated));
+    }
+
+    @PutMapping("/{id}/preferences")
+    @PreAuthorize("hasRole('ADMIN') or #id == principal.userId or #id == principal.email")
+    public ResponseEntity<User> updatePreferences(@PathVariable String id, @RequestBody com.smartcampus.dto.UserPreferenceUpdateRequest request) {
+        log.info("AUDIT [UserController]: Received preferences PUT for ID: {}. Payload: {}", id, request);
+        return ResponseEntity.ok(userService.updateUserPreferences(id, request));
     }
 
     @DeleteMapping("/{id}")

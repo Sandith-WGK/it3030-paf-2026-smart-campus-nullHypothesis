@@ -71,15 +71,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         String oauthPicture = oAuth2User.getAttribute("picture");
         if (StringUtils.hasText(oauthPicture)) {
-            String currentPicture = existingUser.getPicture();
-            boolean hasRealPicture =
-                    StringUtils.hasText(currentPicture) &&
-                    (currentPicture.startsWith("http://")
-                            || currentPicture.startsWith("https://")
-                            || currentPicture.startsWith("data:"));
-
-            // For Google-linked accounts, prefer the provider photo unless the user already has a real picture stored.
-            if (!hasRealPicture) {
+            if (!existingUser.isHasCustomAvatar()) {
                 existingUser.setPicture(oauthPicture);
             }
         }

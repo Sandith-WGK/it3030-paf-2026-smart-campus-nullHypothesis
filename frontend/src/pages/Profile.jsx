@@ -4,9 +4,10 @@ import { useNavigate } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Camera, CheckCircle, Mail, User as UserIcon, Lock, ShieldCheck, AlertCircle, Save, Eye, EyeOff, ArrowLeft
+  Camera, CheckCircle, Mail, User as UserIcon, Lock, ShieldCheck, AlertCircle, Save, Eye, EyeOff
 } from 'lucide-react';
 import { userService } from '../services/api/userService';
+import Layout from '../components/layout/Layout';
 
 const Profile = () => {
   const { user, login, updateUserLocal } = useAuth();
@@ -112,7 +113,8 @@ const Profile = () => {
       }
 
       // The backend now returns { token, user } on update
-      const { user: updatedUser, token: newToken } = await userService.updateUser(user.userId || user.sub, updatePayload);
+      const targetId = user?.id || user?.userId || user?.sub;
+      const { user: updatedUser, token: newToken } = await userService.updateUser(targetId, updatePayload);
       
       // If email was changed, user is now disabled and needs re-verification
       // Comparison is case-insensitive and ensures user.email exists to avoid false-positives
@@ -158,24 +160,10 @@ const Profile = () => {
     passwordCriteria.hasSpecial
   );
 
-  const handleBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate('/dashboard');
-    }
-  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-zinc-50 via-violet-50/60 to-fuchsia-50/50 dark:from-zinc-950 dark:via-violet-950/20 dark:to-zinc-950 p-6 md:p-12 transition-colors duration-300">
-      <button
-        type="button"
-        onClick={handleBack}
-        className="mb-5 inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-violet-200/70 dark:border-violet-700/40 text-sm font-semibold text-violet-700 dark:text-violet-300 bg-white/80 dark:bg-zinc-900/70 hover:bg-white dark:hover:bg-zinc-900 transition-all shadow-sm"
-      >
-        <ArrowLeft size={16} />
-        Back
-      </button>
+    <Layout>
+      <div className="py-6 transition-colors duration-300">
 
       <div className="max-w-4xl mx-auto">
         <header className="mb-10">
@@ -191,6 +179,7 @@ const Profile = () => {
                 <img 
                   src={formData.picture || `https://ui-avatars.com/api/?name=${formData.name}&background=random`} 
                   alt="Profile" 
+                  referrerPolicy="no-referrer"
                   className="w-32 h-32 rounded-full object-cover border-4 border-violet-100 dark:border-violet-900/30 shadow-2xl group-hover:scale-105 transition-transform duration-500 ring-4 ring-violet-100/70 dark:ring-violet-900/30"
                 />
                 {canEditNameAndPicture && (
@@ -364,7 +353,8 @@ const Profile = () => {
         </form>
       </div>
     </div>
-  );
+  </Layout>
+);
 };
 
 export default Profile;

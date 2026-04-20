@@ -11,6 +11,19 @@
       rel="stylesheet"
     />
     <title>Smart Campus</title>
+    <script>
+      (function() {
+        try {
+          var theme = localStorage.getItem('theme') || 'SYSTEM';
+          var root = document.documentElement;
+          if (theme === 'DARK' || (theme === 'SYSTEM' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            root.classList.add('dark');
+          } else {
+            root.classList.remove('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
