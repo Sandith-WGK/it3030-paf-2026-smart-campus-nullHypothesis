@@ -1,5 +1,6 @@
 package com.smartcampus.service;
 
+import com.smartcampus.dto.booking.BookingAnalyticsResponse;
 import com.smartcampus.dto.booking.BookingRejectRequest;
 import com.smartcampus.dto.booking.BookingRequest;
 import com.smartcampus.dto.booking.BookingResponse;
@@ -16,11 +17,15 @@ import com.smartcampus.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -315,6 +320,110 @@ public class BookingService {
         }
 
         bookingRepository.delete(booking);
+    }
+
+    // ── Analytics ─────────────────────────────────────────────────────────────
+
+    /**
+     * Aggregates all booking data for the admin analytics dashboard.
+     * Performs in-memory stream aggregation over all bookings.
+     */
+    public BookingAnalyticsResponse getBookingAnalytics() {
+        List<Booking> all = bookingRepository.findAll();
+
+        // ── Status counts ──────────────────────────────────────────────────────
+        long approved  = all.stream().filter(b -> b.getStatus() == BookingStatus.APPROVED).count();
+        long rejected  = all.stream().filter(b -> b.getStatus() == BookingStatus.REJECTED).count();
+        long cancelled = all.stream().filter(b -> b.getStatus() == BookingStatus.CANCELLED).count();
+        long pending   = all.stream().filter(b -> b.getStatus() == BookingStatus.PENDING).count();
+        long total     = all.size();
+
+        double approvalRate = (approved + rejected) == 0
+                ? 0.0
+                : Math.round((approved * 100.0 / (approved + rejected)) * 10.0) / 10.0;
+
+        // ── Top 5 resources ────────────────────────────────────────────────────
+        Map<String, Long> resourceCounts = all.stream()
+                .collect(Collectors.groupingBy(Booking::getResourceId, Collectors.counting()));
+
+        // Resolve resource names in one batch query
+        List<String> topResourceIds = resourceCounts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(5)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+
+        Map<String, Resource> resourceMap = resourceRepository.findAllById(topResourceIds).stream()
+                .collect(Collectors.toMap(Resource::getId, Function.identity()));
+
+        List<BookingAnalyticsResponse.ResourceUsage> topResources = topResourceIds.stream()
+                .map(id -> {
+                    Resource r = resourceMap.get(id);
+                    String name = r != null ? r.getName() : id;
+                    return new BookingAnalyticsResponse.ResourceUsage(id, name, resourceCounts.get(id));
+                })
+                .collect(Collectors.toList());
+
+        // ── Peak hours (0-23) ──────────────────────────────────────────────────
+        Map<Integer, Long> hourMap = all.stream()
+                .filter(b -> b.getStartTime() != null)
+                .collect(Collectors.groupingBy(
+                        b -> b.getStartTime().getHour(),
+                        Collectors.counting()));
+
+        List<BookingAnalyticsResponse.HourlyCount> peakHours = hourMap.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(e -> new BookingAnalyticsResponse.HourlyCount(e.getKey(), e.getValue()))
+                .collect(Collectors.toList());
+
+        // ── Bookings by day-of-week ────────────────────────────────────────────
+        // Preserve MON→SUN order using a LinkedHashMap seeded with all 7 days
+        Map<DayOfWeek, Long> dowMap = all.stream()
+                .filter(b -> b.getDate() != null)
+                .collect(Collectors.groupingBy(
+                        b -> b.getDate().getDayOfWeek(),
+                        Collectors.counting()));
+
+        List<BookingAnalyticsResponse.DayOfWeekCount> bookingsByDay = new ArrayList<>();
+        for (DayOfWeek dow : DayOfWeek.values()) {
+            String label = dow.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).toUpperCase();
+            bookingsByDay.add(new BookingAnalyticsResponse.DayOfWeekCount(
+                    label, dowMap.getOrDefault(dow, 0L)));
+        }
+
+        // ── Top 5 users ────────────────────────────────────────────────────────
+        Map<String, Long> userCounts = all.stream()
+                .collect(Collectors.groupingBy(Booking::getUserId, Collectors.counting()));
+
+        List<String> topUserIds = userCounts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(5)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+
+        Map<String, User> userMap = userRepository.findAllById(topUserIds).stream()
+                .collect(Collectors.toMap(User::getId, Function.identity()));
+
+        List<BookingAnalyticsResponse.UserBookingCount> topUsers = topUserIds.stream()
+                .map(id -> {
+                    User u = userMap.get(id);
+                    String name = u != null ? u.getName() : id;
+                    return new BookingAnalyticsResponse.UserBookingCount(id, name, userCounts.get(id));
+                })
+                .collect(Collectors.toList());
+
+        return BookingAnalyticsResponse.builder()
+                .totalBookings(total)
+                .approvedCount(approved)
+                .rejectedCount(rejected)
+                .cancelledCount(cancelled)
+                .pendingCount(pending)
+                .approvalRate(approvalRate)
+                .topResources(topResources)
+                .peakHours(peakHours)
+                .bookingsByDayOfWeek(bookingsByDay)
+                .topUsers(topUsers)
+                .build();
     }
 
     // ── Resource Schedule ─────────────────────────────────────────────────────
