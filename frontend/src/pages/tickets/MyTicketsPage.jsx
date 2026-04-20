@@ -26,7 +26,7 @@ export default function MyTicketsPage() {
       const res = await ticketService.getMyTickets();
       const raw = res.data ?? res;
       setTickets(Array.isArray(raw) ? raw : []);
-    } catch (err) {
+    } catch (_) {
       setToast({ type: 'error', message: 'Failed to load tickets' });
     } finally {
       setLoading(false);
