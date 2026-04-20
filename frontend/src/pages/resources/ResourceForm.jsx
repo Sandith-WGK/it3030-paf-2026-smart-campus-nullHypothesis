@@ -8,6 +8,7 @@ import {
   CheckCircle, AlertCircle
 } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
+import Toast from '../../components/common/Toast';  // ← ADD THIS IMPORT
 
 /**
  * ResourceForm - Create/Edit form for resources
@@ -34,6 +35,7 @@ const ResourceForm = () => {
   const [errors, setErrors] = useState({});
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [toast, setToast] = useState(null);  // ← ADD THIS STATE
 
   const fetchResource = useCallback(async () => {
     try {
@@ -53,6 +55,7 @@ const ResourceForm = () => {
       });
     } catch (err) {
       setSubmitError('Failed to load resource data.');
+      setToast({ type: 'error', message: 'Failed to load resource data' });  // ← ADD THIS
       console.error('Error fetching resource:', err);
     } finally {
       setFetchLoading(false);
@@ -112,6 +115,7 @@ const ResourceForm = () => {
     setSubmitSuccess(false);
 
     if (!validateForm()) {
+      setToast({ type: 'error', message: 'Please fix validation errors before submitting' });  // ← ADD THIS
       return;
     }
 
@@ -126,8 +130,10 @@ const ResourceForm = () => {
 
       if (isEditMode) {
         await resourceApi.update(id, submitData);
+        setToast({ type: 'success', message: 'Resource updated successfully!' });  // ← ADD THIS
       } else {
         await resourceApi.create(submitData);
+        setToast({ type: 'success', message: 'Resource created successfully!' });  // ← ADD THIS
       }
 
       setSubmitSuccess(true);
@@ -137,7 +143,9 @@ const ResourceForm = () => {
         navigate('/admin/resources');
       }, 1500);
     } catch (err) {
-      setSubmitError(err.response?.data?.message || 'Failed to save resource. Please try again.');
+      const errorMsg = err.response?.data?.message || 'Failed to save resource. Please try again.';
+      setSubmitError(errorMsg);
+      setToast({ type: 'error', message: errorMsg });  // ← ADD THIS
       console.error('Error saving resource:', err);
     } finally {
       setLoading(false);
@@ -202,7 +210,7 @@ const ResourceForm = () => {
           </div>
         </div>
 
-        {/* Success Message */}
+        {/* Success Message (keep this as backup) */}
         {submitSuccess && (
           <Motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -214,7 +222,7 @@ const ResourceForm = () => {
           </Motion.div>
         )}
 
-        {/* Submit Error */}
+        {/* Submit Error (keep this as backup) */}
         {submitError && (
           <Motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -228,6 +236,7 @@ const ResourceForm = () => {
 
         {/* Form */}
         <form onSubmit={handleSubmit}>
+          {/* Your existing form content remains the same */}
           <Motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -449,6 +458,9 @@ const ResourceForm = () => {
           </Motion.div>
         </form>
       </div>
+
+      {/* Toast Notifications - ADD THIS AT THE END */}
+      <Toast toast={toast} onClose={() => setToast(null)} />
     </Layout>
   );
 };

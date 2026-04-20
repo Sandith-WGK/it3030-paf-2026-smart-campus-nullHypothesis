@@ -12,6 +12,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
 
+
+
 @Document(collection = "users")
 @Data
 @Builder
@@ -57,4 +59,7 @@ public class User {
 
     @CreatedDate
     private Instant createdAt;
+
+    @Builder.Default
+    private NotificationPreference notificationPreferences = new NotificationPreference();
 }

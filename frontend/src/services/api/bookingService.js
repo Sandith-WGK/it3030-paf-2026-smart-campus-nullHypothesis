@@ -35,6 +35,9 @@ const bookingService = {
   // GET /bookings/resource-schedule?resourceId=...&date=...
   getResourceSchedule: (resourceId, date) =>
     api.get(`${BASE}/resource-schedule`, { params: { resourceId, date } }),
+
+  // GET /bookings/analytics  (admin only)
+  getBookingAnalytics: () => api.get(`${BASE}/analytics`),
 };
 
 export default bookingService;

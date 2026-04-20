@@ -1,6 +1,7 @@
 package com.smartcampus.controller;
 
 import com.smartcampus.dto.ApiResponse;
+import com.smartcampus.dto.booking.BookingAnalyticsResponse;
 import com.smartcampus.dto.booking.BookingRejectRequest;
 import com.smartcampus.dto.booking.BookingRequest;
 import com.smartcampus.dto.booking.BookingResponse;
@@ -191,5 +192,15 @@ public class BookingController {
 
         bookingService.deleteBooking(id, principal.getId(), isAdmin);
         return ResponseEntity.noContent().build();
+    }
+
+    // ── GET /api/v1/bookings/analytics ─────────────────────────────────────────
+    // Admin-only: returns aggregated booking analytics used by the dashboard panel.
+
+    @GetMapping("/analytics")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<BookingAnalyticsResponse>> getBookingAnalytics() {
+        BookingAnalyticsResponse analytics = bookingService.getBookingAnalytics();
+        return ResponseEntity.ok(ApiResponse.success("Analytics retrieved successfully", analytics));
     }
 }

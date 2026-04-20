@@ -9,6 +9,7 @@ export default function ConfirmModal({
   title,
   message,
   confirmLabel = 'Confirm',
+  cancelLabel = 'Cancel',
   confirmVariant = 'primary',
   loading,
 }) {
@@ -20,6 +21,7 @@ export default function ConfirmModal({
     warning:
       'bg-amber-500 hover:bg-amber-600 text-white',
   };
+
 
   return (
     <AnimatePresence>
@@ -56,7 +58,7 @@ export default function ConfirmModal({
                 onClick={onClose}
                 className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm font-medium py-2 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
               >
-                Cancel
+                {cancelLabel}
               </button>
               <button
                 onClick={onConfirm}

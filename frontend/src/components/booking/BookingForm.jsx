@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import { DayPicker } from 'react-day-picker';
@@ -6,6 +7,7 @@ import 'react-day-picker/style.css';
 import resourceService from '../../services/api/resourceService';
 import bookingService from '../../services/api/bookingService';
 import BookingTimeline from './BookingTimeline';
+import ConfirmModal from './ConfirmModal';
 import { CalendarDays, Clock, Loader2, Search, ChevronRight, ChevronLeft, Check } from 'lucide-react';
 
 // ─── Time utilities ────────────────────────────────────────────────────────────
@@ -115,7 +117,8 @@ function StepIndicator({ steps, currentStep }) {
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
-export default function BookingForm({ initial = {}, onSubmit, loading, submitLabel = 'Submit', fixedResourceId }) {
+export default function BookingForm({ initial = {}, onSubmit, loading, submitLabel = 'Submit', fixedResourceId, currentUserId }) {
+  const navigate = useNavigate();
   // When editing (fixedResourceId set), skip resource selection and start at date/time.
   const totalSteps = fixedResourceId ? 2 : 3;
   const stepLabels = fixedResourceId
@@ -222,6 +225,40 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
       .finally(() => setSlotsLoading(false));
   }, [activeResourceId, form.date, activeResource]);
 
+  // ── Derived: approved-only bookings + slot-specific conflict detection ──────────
+  const approvedBookings = useMemo(
+    () => allBookings.filter((b) => b.status === 'APPROVED'),
+    [allBookings],
+  );
+
+  // Exclusive mode: slot is blocked if ANY approved booking overlaps the selected range.
+  // false (not null) when no time is selected — the Next button stays enabled until
+  // the user picks times and we can legitimately evaluate a conflict.
+  const slotBooked = useMemo(() => {
+    if (!form.startTime || !form.endTime) return false;
+    return approvedBookings.some(
+      (b) => b.startTime < form.endTime && b.endTime > form.startTime,
+    );
+  }, [approvedBookings, form.startTime, form.endTime]);
+
+  // ── Duplicate booking detection ──────────────────────────────────────────────────
+  // Finds the current user's own PENDING/APPROVED booking that overlaps the
+  // selected slot. Only active on the new-booking flow (not edit).
+  const [duplicateBooking, setDuplicateBooking] = useState(null);
+
+  const userDuplicate = useMemo(() => {
+    if (!currentUserId || !form.startTime || !form.endTime) return null;
+    return (
+      allBookings.find(
+        (b) =>
+          (b.userId === currentUserId || b.userId === String(currentUserId)) &&
+          (b.status === 'PENDING' || b.status === 'APPROVED') &&
+          b.startTime < form.endTime &&
+          b.endTime > form.startTime,
+      ) ?? null
+    );
+  }, [allBookings, currentUserId, form.startTime, form.endTime]);
+
   // ── Validation ────────────────────────────────────────────────────────────────
   const validateStep = (step) => {
     const e = {};
@@ -234,6 +271,17 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
       if (!form.endTime) e.endTime = 'End time is required';
       if (form.startTime && form.endTime && form.startTime >= form.endTime)
         e.endTime = 'End time must be after start time';
+      // Past-time guard: if the selected date is today, start time must be in the future
+      if (form.date && form.startTime) {
+        const nowDate = new Date().toISOString().split('T')[0];
+        const nowTime = new Date().toTimeString().slice(0, 5);
+        if (form.date === nowDate && form.startTime <= nowTime)
+          e.startTime = 'Start time must be in the future for today.';
+        if (form.date < nowDate)
+          e.date = 'Cannot book a date in the past.';
+      }
+      if (slotBooked)
+        e.slot = 'This time slot already has an approved booking. Please choose a different time.';
     }
     if (step === 3) {
       if (!form.purpose || form.purpose.trim().length < 5)
@@ -256,6 +304,11 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
 
   const nextStep = () => {
     if (!validateStep(realStep)) return;
+    // Duplicate booking guard — only on new booking creation (not edit flow)
+    if (realStep === 2 && !fixedResourceId && userDuplicate) {
+      setDuplicateBooking(userDuplicate);
+      return;
+    }
     setUiStep((s) => Math.min(s + 1, totalSteps));
   };
 
@@ -264,8 +317,13 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
     setUiStep((s) => Math.max(s - 1, 1));
   };
 
+  // Track in-flight submission to prevent double-tap
+  const [submitting, setSubmitting] = useState(false);
+
   const handleFinalSubmit = () => {
     if (!validateStep(3)) return;
+    if (submitting) return; // guard against double-tap
+    setSubmitting(true);
     const payload = {
       ...(fixedResourceId ? {} : { resourceId: form.resourceId }),
       date: form.date,
@@ -274,7 +332,7 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
       purpose: form.purpose.trim(),
       expectedAttendees: form.expectedAttendees ? Number(form.expectedAttendees) : null,
     };
-    onSubmit(payload);
+    Promise.resolve(onSubmit(payload)).finally(() => setSubmitting(false));
   };
 
   const today = new Date().toISOString().split('T')[0];
@@ -506,63 +564,7 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
               {errors.date && <p className={errorClass}>{errors.date}</p>}
             </div>
 
-            {/* ── Timeline + free-slot chips (once date is chosen) ── */}
-            {activeResourceId && form.date && (
-              <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 p-4">
-                {slotsLoading ? (
-                  <div className="flex items-center gap-2 text-xs text-zinc-400">
-                    <Loader2 size={12} className="animate-spin" /> Checking availability…
-                  </div>
-                ) : (
-                  <>
-                    <BookingTimeline bookings={allBookings} selectedRange={selectedRange} />
-
-                    {slots.length > 0 ? (
-                      <div className="mt-4">
-                        <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2">
-                          Quick-pick a free slot
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {slots.map((slot) => {
-                            const isSelected =
-                              form.startTime === slot.start && form.endTime === slot.end;
-                            return (
-                              <button
-                                key={`${slot.start}-${slot.end}`}
-                                type="button"
-                                onClick={() => {
-                                  setField('startTime', slot.start);
-                                  setField('endTime', slot.end);
-                                }}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                                  isSelected
-                                    ? 'bg-violet-600 text-white'
-                                    : 'bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20'
-                                }`}
-                              >
-                                {slot.start} – {slot.end}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-xs mt-3 font-medium">
-                        {allBookings.length > 0 ? (
-                          <span className="text-red-500">No free slots remaining on this date.</span>
-                        ) : (
-                          <span className="text-emerald-600 dark:text-emerald-400">
-                            ✓ Fully available — pick any time below.
-                          </span>
-                        )}
-                      </p>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* ── Time dropdowns ── */}
+            {/* ── Time dropdowns — above the timeline so they act as input ── */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className={labelClass}>
@@ -605,6 +607,81 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
                 {errors.endTime && <p className={errorClass}>{errors.endTime}</p>}
               </div>
             </div>
+
+            {/* ── Timeline + capacity feedback (shown once date is chosen) ── */}
+            {activeResourceId && form.date && (
+              <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 p-4">
+                {slotsLoading ? (
+                  <div className="flex items-center gap-2 text-xs text-zinc-400">
+                    <Loader2 size={12} className="animate-spin" /> Checking availability…
+                  </div>
+                ) : (
+                  <>
+                    <BookingTimeline
+                      bookings={approvedBookings}
+                      selectedRange={selectedRange}
+                      slotBooked={slotBooked}
+                    />
+
+                    {/* Slot booked error (exclusive mode) */}
+                    {slotBooked && (
+                      <p className="text-xs text-red-500 mt-3 font-medium">
+                        ⛔ This time slot is already reserved. Please choose a different time.
+                      </p>
+                    )}
+
+                    {/* Generic slot error from validateStep */}
+                    {errors.slot && !slotBooked && (
+                      <p className={`${errorClass} mt-2`}>{errors.slot}</p>
+                    )}
+
+                    {/* Quick-pick free slots */}
+                    {slots.length > 0 ? (
+                      <div className="mt-4">
+                        <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2">
+                          Quick-pick a free slot
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {slots.map((slot) => {
+                            const isSelected =
+                              form.startTime === slot.start && form.endTime === slot.end;
+                            return (
+                              <button
+                                key={`${slot.start}-${slot.end}`}
+                                type="button"
+                                onClick={() => {
+                                  setField('startTime', slot.start);
+                                  setField('endTime', slot.end);
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                  isSelected
+                                    ? 'bg-violet-600 text-white'
+                                    : 'bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20'
+                                }`}
+                              >
+                                {slot.start} – {slot.end}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      !slotBooked && (
+                        <p className="text-xs mt-3 font-medium">
+                          {approvedBookings.length > 0 ? (
+                            <span className="text-red-500">No completely free slots remaining on this date.</span>
+                          ) : (
+                            <span className="text-emerald-600 dark:text-emerald-400">
+                              ✓ Fully available — pick any time above.
+                            </span>
+                          )}
+                        </p>
+                      )
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -717,7 +794,12 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
           <button
             type="button"
             onClick={nextStep}
-            className="flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white transition-colors"
+            disabled={realStep === 2 && slotBooked}
+            className={`flex items-center gap-2 text-sm font-semibold px-5 py-2.5 rounded-lg text-white transition-colors ${
+              realStep === 2 && slotBooked
+                ? 'bg-violet-300 dark:bg-violet-800 cursor-not-allowed opacity-60'
+                : 'bg-violet-600 hover:bg-violet-700'
+            }`}
           >
             Next <ChevronRight size={16} />
           </button>
@@ -725,7 +807,7 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
           <button
             type="button"
             onClick={handleFinalSubmit}
-            disabled={loading}
+            disabled={loading || submitting}
             className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
           >
             {loading && <Loader2 size={15} className="animate-spin" />}
@@ -733,6 +815,25 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
           </button>
         )}
       </div>
+
+      {/* ── Duplicate booking interception modal ── */}
+      <ConfirmModal
+        open={!!duplicateBooking}
+        onClose={() => {
+          setDuplicateBooking(null);
+          // Clear time selection so user picks a fresh slot
+          setField('startTime', '');
+          setField('endTime', '');
+        }}
+        onConfirm={() => {
+          navigate(`/bookings/${duplicateBooking.id}/edit`);
+        }}
+        title="Existing Booking Found"
+        message={`You already have a ${duplicateBooking?.status?.toLowerCase()} booking for this resource on ${duplicateBooking?.date} (${duplicateBooking?.startTime}\u2013${duplicateBooking?.endTime}). Would you like to edit your existing booking instead?`}
+        confirmLabel="Edit Existing Booking"
+        cancelLabel="Choose Different Time"
+        confirmVariant="primary"
+      />
     </div>
   );
 }

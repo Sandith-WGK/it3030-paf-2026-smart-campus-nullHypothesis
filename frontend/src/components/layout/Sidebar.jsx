@@ -122,14 +122,6 @@ export default function Sidebar({ open, onClose }) {
             Maintenance Tickets
           </NavLink>
 
-          <NavLink
-            to="/notifications"
-            className={({ isActive }) => `${navItem} ${isActive ? activeClass : inactiveClass}`}
-            onClick={onClose}
-          >
-            <Bell size={18} />
-            Notifications
-          </NavLink>
 
           {/* ── Admin section ── */}
           {admin && (
