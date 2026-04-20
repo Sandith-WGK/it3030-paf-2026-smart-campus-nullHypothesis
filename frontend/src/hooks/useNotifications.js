@@ -2,8 +2,16 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client/dist/sockjs.js';
 import { notificationService } from '../services/api/notificationService';
+import { useTheme } from '../context/useTheme';
 
 export const useNotifications = (userId, token) => {
+  const { preferences } = useTheme();
+  const prefsRef = useRef(preferences);
+
+  useEffect(() => {
+    prefsRef.current = preferences;
+  }, [preferences]);
+
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -41,20 +49,24 @@ export const useNotifications = (userId, token) => {
       if (notif.userId && notif.userId !== userId) return;
 
       // Visual Notification (Toast)
-      import('react-hot-toast').then(({ toast }) => {
-        toast(notif.message, {
-          icon: '🔔',
-          duration: 5000,
-          position: 'top-right',
-          style: {
-            borderRadius: '12px',
-            background: '#ffffff',
-            color: '#18181b',
-            border: '1px solid #e4e4e7',
-            padding: '12px 16px',
-          }
+      // Only show in-app toast if push notifications are enabled
+      if (prefsRef.current?.enablePushNotifications !== false) {
+        import('react-hot-toast').then(({ toast }) => {
+          toast(notif.message, {
+            icon: notif.severity === 'ALERT' ? '⚠️' : 
+                  notif.severity === 'SUCCESS' ? '✅' : 'ℹ️',
+            duration: 5000,
+            position: 'top-right',
+            style: {
+              borderRadius: '12px',
+              background: '#ffffff',
+              color: '#18181b',
+              border: '1px solid #e4e4e7',
+              padding: '12px 16px',
+            }
+          });
         });
-      });
+      }
 
       // Audio Alert based on category
       const getSoundUrl = () => {
@@ -73,9 +85,12 @@ export const useNotifications = (userId, token) => {
         return 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3'; // Standard Bell
       };
 
-      const audio = new Audio(getSoundUrl());
-      audio.volume = 0.4; // Slightly lower volume for better UX
-      audio.play().catch(() => {});
+      // Only play sound if user preference allows it
+      if (prefsRef.current?.enableSounds !== false) {
+        const audio = new Audio(getSoundUrl());
+        audio.volume = 0.4; // Slightly lower volume for better UX
+        audio.play().catch(() => {});
+      }
 
       setNotifications((prev) => {
         if (prev.some(n => n.id === notif.id)) return prev;

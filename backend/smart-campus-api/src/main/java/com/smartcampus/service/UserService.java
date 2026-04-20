@@ -110,6 +110,7 @@ public class UserService {
             // Handle Profile Picture
             if (StringUtils.hasText(picture)) {
                 user.setPicture(picture);
+                user.setHasCustomAvatar(true);
             }
             
             // Handle Password Update
@@ -158,20 +159,39 @@ public class UserService {
         throw new RuntimeException("User not found with id: " + id);
     }
 
-    public User updateUserPreferences(String userId, com.smartcampus.dto.UserPreferenceUpdateRequest request) {
-        User user = getUserById(userId);
-        com.smartcampus.model.UserPreference prefs = user.getPreferences();
-        if (prefs == null) {
-            prefs = new com.smartcampus.model.UserPreference();
+    public User updateUserPreferences(String identifier, com.smartcampus.dto.UserPreferenceUpdateRequest request) {
+        // Find the primary record being updated
+        User primaryUser = userRepository.findById(identifier)
+                .orElseGet(() -> userRepository.findByEmail(identifier).orElse(null));
+
+        if (primaryUser == null) {
+            throw new RuntimeException("User not found: " + identifier);
         }
 
-        if (request.getTheme() != null) prefs.setTheme(request.getTheme());
-        if (request.getEnableSounds() != null) prefs.setEnableSounds(request.getEnableSounds());
-        if (request.getEnableEmailNotifications() != null) prefs.setEnableEmailNotifications(request.getEnableEmailNotifications());
-        if (request.getEnablePushNotifications() != null) prefs.setEnablePushNotifications(request.getEnablePushNotifications());
+        // Find ALL records sharing the same email to ensure global synchronization
+        String email = primaryUser.getEmail();
+        List<User> linkedUsers = (email != null) ? userRepository.findAllByEmail(email) : List.of(primaryUser);
+        
+        User savedPrimary = null;
+        for (User u : linkedUsers) {
+            com.smartcampus.model.UserPreference prefs = u.getPreferences();
+            if (prefs == null) {
+                prefs = new com.smartcampus.model.UserPreference();
+            }
 
-        user.setPreferences(prefs);
-        return userRepository.save(user);
+            if (request.getTheme() != null) prefs.setTheme(request.getTheme());
+            if (request.getEnableSounds() != null) prefs.setEnableSounds(request.getEnableSounds());
+            if (request.getEnableEmailNotifications() != null) prefs.setEnableEmailNotifications(request.getEnableEmailNotifications());
+            if (request.getEnablePushNotifications() != null) prefs.setEnablePushNotifications(request.getEnablePushNotifications());
+
+            u.setPreferences(prefs);
+            User saved = userRepository.save(u);
+            if (u.getId().equals(primaryUser.getId())) {
+                savedPrimary = saved;
+            }
+        }
+
+        return savedPrimary != null ? savedPrimary : primaryUser;
     }
 
     public void deleteUser(String id) {

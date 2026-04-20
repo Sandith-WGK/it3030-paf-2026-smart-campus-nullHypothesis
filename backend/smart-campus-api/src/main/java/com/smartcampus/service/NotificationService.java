@@ -12,6 +12,8 @@ import com.smartcampus.model.Severity;
 import com.smartcampus.model.User;
 import com.smartcampus.repository.NotificationRepository;
 import com.smartcampus.repository.UserRepository;
+import com.smartcampus.event.EmailNotificationEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -28,6 +30,7 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Generic method to trigger a notification from any service.
@@ -81,6 +84,13 @@ public class NotificationService {
             log.info("WebSocket: Notification pushed for user {} (Direct + Broadcast)", userId);
         } catch (Exception e) {
             log.error("WebSocket: Failed to push notification {}: {}", saved.getId(), e.getMessage());
+        }
+
+        // --- Async Delivery: Dual-Channel (Email) ---
+        if (user != null && user.getEmail() != null) {
+            String subject = type.toString().replace("_", " ");
+            log.info("Notification: Publishing Async Email Event to {} (type: {})", user.getEmail(), type);
+            eventPublisher.publishEvent(new EmailNotificationEvent(this, user, subject, message));
         }
     }
 

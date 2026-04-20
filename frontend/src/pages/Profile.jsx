@@ -113,7 +113,8 @@ const Profile = () => {
       }
 
       // The backend now returns { token, user } on update
-      const { user: updatedUser, token: newToken } = await userService.updateUser(user.userId || user.sub, updatePayload);
+      const targetId = user?.id || user?.userId || user?.sub;
+      const { user: updatedUser, token: newToken } = await userService.updateUser(targetId, updatePayload);
       
       // If email was changed, user is now disabled and needs re-verification
       // Comparison is case-insensitive and ensures user.email exists to avoid false-positives
@@ -178,6 +179,7 @@ const Profile = () => {
                 <img 
                   src={formData.picture || `https://ui-avatars.com/api/?name=${formData.name}&background=random`} 
                   alt="Profile" 
+                  referrerPolicy="no-referrer"
                   className="w-32 h-32 rounded-full object-cover border-4 border-violet-100 dark:border-violet-900/30 shadow-2xl group-hover:scale-105 transition-transform duration-500 ring-4 ring-violet-100/70 dark:ring-violet-900/30"
                 />
                 {canEditNameAndPicture && (

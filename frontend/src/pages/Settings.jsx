@@ -1,5 +1,5 @@
 import React from 'react';
-import * as motion from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
   Moon, Sun, Monitor, Bell, Volume2, Mail, 
   Smartphone, ShieldCheck, User as UserIcon, Save
@@ -52,35 +52,54 @@ const Toggle = ({ enabled, onChange, label, icon: Icon, description }) => (
 export default function Settings() {
   const { theme, setTheme, preferences, updatePreferences } = useTheme();
   const { user } = useAuth();
+  
+  // Track if the user has manually toggled anything this session.
+  // Once true, we stop the useEffect from overwriting the local state.
+  const userTouched = React.useRef(false);
 
-  const handleSave = () => {
-    toast.success('Settings saved and synchronized', {
-       icon: '✨',
-       style: { borderRadius: '12px', background: '#18181b', color: '#fff' }
-    });
+  const [localPrefs, setLocalPrefs] = React.useState({
+    enableSounds: true,
+    enablePushNotifications: true,
+    enableEmailNotifications: true
+  });
+
+  // Sync from context ONLY on initial load (before user interacts).
+  // Once the user clicks a toggle, we lock the local state to prevent
+  // the reactive loop from reverting it.
+  React.useEffect(() => {
+    if (userTouched.current) return; // User has clicked — don't overwrite!
+    if (preferences) {
+      setLocalPrefs({
+        enableSounds: preferences.enableSounds ?? true,
+        enablePushNotifications: preferences.enablePushNotifications ?? true,
+        enableEmailNotifications: preferences.enableEmailNotifications ?? true
+      });
+    }
+  }, [preferences]);
+
+  const handleToggle = (key, value) => {
+    // Mark that the user has interacted — lock out the useEffect
+    userTouched.current = true;
+
+    // A. Flip the UI switch INSTANTLY (local state)
+    setLocalPrefs(prev => ({ ...prev, [key]: value }));
+    
+    // B. Persist to backend & global context in the background
+    updatePreferences({ [key]: value });
   };
 
   return (
     <Layout title="Settings">
-      <motion.motion.div 
+      <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="max-w-4xl mx-auto"
       >
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 italic">Preferences & Experience</h2>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
-              Customize how Smart Campus looks and behaves for you.
-            </p>
-          </div>
-          <button 
-            onClick={handleSave}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-semibold text-sm transition-all shadow-lg shadow-violet-500/20 active:scale-95"
-          >
-            <Save size={18} />
-            Save Changes
-          </button>
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 italic">Preferences & Experience</h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+            Customize how Smart Campus looks and behaves for you.
+          </p>
         </div>
 
         {/* ── Appearance Section ── */}
@@ -120,24 +139,24 @@ export default function Settings() {
               label="Notification Sounds" 
               description="Play audible alerts for real-time notifications based on type."
               icon={Volume2}
-              enabled={preferences.enableSounds}
-              onChange={(val) => updatePreferences({ enableSounds: val })}
-            />
-            <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-2"></div>
-            <Toggle 
-              label="Email Notifications" 
-              description="Receive daily summaries and critical alerts via email."
-              icon={Mail}
-              enabled={preferences.enableEmailNotifications}
-              onChange={(val) => updatePreferences({ enableEmailNotifications: val })}
+              enabled={localPrefs.enableSounds}
+              onChange={(val) => handleToggle('enableSounds', val)}
             />
             <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-2"></div>
             <Toggle 
               label="Push Notifications" 
               description="Allow browser push notifications for instant updates."
               icon={Smartphone}
-              enabled={preferences.enablePushNotifications}
-              onChange={(val) => updatePreferences({ enablePushNotifications: val })}
+              enabled={localPrefs.enablePushNotifications}
+              onChange={(val) => handleToggle('enablePushNotifications', val)}
+            />
+            <div className="h-px bg-zinc-100 dark:bg-zinc-800 my-2"></div>
+            <Toggle 
+              label="Email Notifications" 
+              description="Receive critical alerts and updates in your inbox."
+              icon={Mail}
+              enabled={localPrefs.enableEmailNotifications}
+              onChange={(val) => handleToggle('enableEmailNotifications', val)}
             />
           </div>
         </SettingSection>
@@ -152,6 +171,7 @@ export default function Settings() {
               <img 
                 src={user?.picture || `https://ui-avatars.com/api/?name=${user?.name}&background=random`} 
                 alt="user" 
+                referrerPolicy="no-referrer"
               />
             </div>
             <div className="flex-1">
@@ -168,7 +188,7 @@ export default function Settings() {
         <div className="text-center pb-12">
           <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em]">Smart Campus Operations Hub v0.4.2</p>
         </div>
-      </motion.motion.div>
+      </motion.div>
     </Layout>
   );
 }

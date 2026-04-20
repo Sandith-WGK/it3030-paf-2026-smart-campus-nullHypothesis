@@ -2,21 +2,23 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/useTheme';
-// eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  LogOut, User as UserIcon, Settings as SettingsIcon, ChevronDown, Bell, Moon, Sun
+  LogOut, 
+  User as UserIcon, 
+  Settings as SettingsIcon, 
+  ChevronDown, 
+  Bell, 
+  Moon, 
+  Sun,
+  BellRing
 } from 'lucide-react';
-
-const Navbar = ({ leftSlot = null }) => {
-  const { user, logout } = useAuth();
-  const { toggleTheme, resolvedTheme } = useTheme();
-import { LogOut, User as UserIcon, Settings, ChevronDown, Bell, Moon, Sun, BellRing } from 'lucide-react';
 import { useNotifications } from '../hooks/useNotifications';
 import NotificationPanel from './notifications/NotificationPanel';
 
 const Navbar = ({ leftSlot = null }) => {
   const { user, token, logout } = useAuth();
+  const { toggleTheme, resolvedTheme } = useTheme();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -143,6 +145,7 @@ const Navbar = ({ leftSlot = null }) => {
               <img 
                 src={user?.picture || `https://ui-avatars.com/api/?name=${user?.name || user?.email}&background=random`} 
                 alt="Avatar" 
+                referrerPolicy="no-referrer"
                 className="w-10 h-10 rounded-full object-cover border-2 border-white dark:border-zinc-900 shadow-sm"
               />
               <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></div>

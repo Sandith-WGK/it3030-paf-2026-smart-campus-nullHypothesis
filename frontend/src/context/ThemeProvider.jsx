@@ -1,42 +1,54 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { ThemeContext } from './ThemeContext';
 import { useAuth } from './AuthContext';
 import { userService } from '../services/api/userService';
+import toast from 'react-hot-toast';
 
 export const ThemeProvider = ({ children }) => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, updateUser } = useAuth();
   
-  // 1. Initial theme load (Synchronous from localStorage to avoid flash)
+  // 1. Theme State (Handles the visual mode)
   const [theme, setThemeState] = useState(() => {
     return localStorage.getItem('theme') || 'SYSTEM';
   });
 
-  const [preferences, setPreferences] = useState(() => {
-    const saved = localStorage.getItem('user_prefs');
-    return saved ? JSON.parse(saved) : {
-      enableSounds: true,
-      enableEmailNotifications: true,
-      enablePushNotifications: true
-    };
+  const [resolvedTheme, setResolvedTheme] = useState('light');
+
+  // 2. INTERNAL PREFERENCE STATE (The Mirror)
+  // This state provides the "Instant UI Flip" the user is missing.
+  // It initializes from localStorage/Context but is updated immediately on toggle.
+  const [internalPrefs, setInternalPrefs] = useState(() => {
+     const saved = localStorage.getItem('user_prefs');
+     return saved ? JSON.parse(saved) : {
+       enableSounds: true,
+       enablePushNotifications: true,
+       theme: 'SYSTEM'
+     };
   });
 
-  const [resolvedTheme, setResolvedTheme] = useState('light');
+  // Sync internal state with AuthContext when the user object arrives
+  useEffect(() => {
+    if (user?.preferences) {
+      setInternalPrefs(prev => ({
+        ...prev,
+        ...user.preferences
+      }));
+    }
+  }, [user]);
 
   // Sync theme to localStorage immediately when it changes
   useEffect(() => {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // Handle theme application and system preference listening
+  // Handle visual theme application
   useEffect(() => {
     const root = window.document.documentElement;
-    
     const applyTheme = (t) => {
       let resolved = t;
       if (t === 'SYSTEM') {
         resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'DARK' : 'LIGHT';
       }
-      
       if (resolved === 'DARK') {
         root.classList.add('dark');
       } else {
@@ -44,10 +56,8 @@ export const ThemeProvider = ({ children }) => {
       }
       setResolvedTheme(resolved.toLowerCase());
     };
-
     applyTheme(theme);
 
-    // Listen for system changes if mode is SYSTEM
     if (theme === 'SYSTEM') {
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
       const handleChange = () => applyTheme('SYSTEM');
@@ -56,59 +66,48 @@ export const ThemeProvider = ({ children }) => {
     }
   }, [theme]);
 
-  // Sync preferences from user object (passed from AuthContext)
-  useEffect(() => {
-    if (isAuthenticated && user?.preferences) {
-      const backendPrefs = user.preferences;
-      const nextTheme = backendPrefs.theme || 'SYSTEM';
-
-      // Only update theme if it actually changed
-      setThemeState((prev) => (prev === nextTheme ? prev : nextTheme));
-
-      const newPrefs = {
-        enableSounds: backendPrefs.enableSounds ?? true,
-        enableEmailNotifications: backendPrefs.enableEmailNotifications ?? true,
-        enablePushNotifications: backendPrefs.enablePushNotifications ?? true
-      };
-      
-      // Only update prefs if they actually changed
-      setPreferences((prev) => {
-        const same =
-          prev.enableSounds === newPrefs.enableSounds &&
-          prev.enableEmailNotifications === newPrefs.enableEmailNotifications &&
-          prev.enablePushNotifications === newPrefs.enablePushNotifications;
-
-        if (same) return prev;
-        localStorage.setItem('user_prefs', JSON.stringify(newPrefs));
-        return newPrefs;
-      });
-    }
-  }, [isAuthenticated, user]);
+  // Derived preferences for the context
+  const preferences = useMemo(() => ({
+    ...internalPrefs,
+    theme: theme
+  }), [internalPrefs, theme]);
 
   const updatePreferences = useCallback(async (updates) => {
-    const newTheme = updates.theme || theme;
-    const newPrefs = { ...preferences, ...updates, theme: newTheme };
+    console.log('[DEBUG] ThemeProvider -> Instant Local Update:', updates);
     
-    // Update local state first
-    setPreferences(newPrefs);
-    localStorage.setItem('user_prefs', JSON.stringify(newPrefs));
+    // 1. INSTANT UI FLIP (Local State)
+    // This solves the 'Toggle doesn't apply' issue by updating the local mirror immediately.
+    setInternalPrefs(prev => {
+      const next = { ...prev, ...updates };
+      localStorage.setItem('user_prefs', JSON.stringify(next));
+      return next;
+    });
+
     if (updates.theme) setThemeState(updates.theme);
 
-    if (isAuthenticated && user?.userId) {
+    // 2. Global Global Sync (AuthContext)
+    if (updateUser) {
+      updateUser({ preferences: updates });
+    }
+
+    // 3. Backend Persistence
+    const identifier = user?.email || user?.id || user?.userId || user?.sub;
+    if (isAuthenticated && identifier) {
        try {
-         await userService.updatePreferences(user.userId, updates);
+         const updatedUser = await userService.updatePreferences(identifier, updates);
+         if (updateUser && updatedUser) {
+           updateUser(updatedUser);
+         }
        } catch (error) {
-         console.error('Failed to sync preferences to backend:', error);
+         console.error('[DEBUG] ThemeProvider -> Backend Sync Failed:', error);
        }
     }
-  }, [preferences, isAuthenticated, user, theme]);
+  }, [isAuthenticated, user, updateUser]);
 
   const setTheme = useCallback((newTheme) => {
     setThemeState(newTheme);
-    if (isAuthenticated && user?.userId) {
-      userService.updatePreferences(user.userId, { theme: newTheme }).catch(err => console.error(err));
-    }
-  }, [isAuthenticated, user]);
+    updatePreferences({ theme: newTheme });
+  }, [updatePreferences]);
 
   const toggleTheme = useCallback(() => {
     const newTheme = resolvedTheme === 'dark' ? 'LIGHT' : 'DARK';

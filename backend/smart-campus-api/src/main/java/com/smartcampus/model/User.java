@@ -31,6 +31,9 @@ public class User {
 
     private String picture; // Google profile photo URL
 
+    @Builder.Default
+    private boolean hasCustomAvatar = false;
+
     private String provider; // "GOOGLE" or "LOCAL"
 
     @JsonIgnore
