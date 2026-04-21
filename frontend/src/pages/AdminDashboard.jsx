@@ -10,8 +10,8 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend
 } from 'recharts';
 import { 
-  Moon, Sun, Search, FileDown, Plus, Edit2, Trash2, X, Brain, CheckCircle, Camera, Lock, AlertCircle
-  , Eye, EyeOff
+  Moon, Sun, Search, FileDown, Plus, Edit2, Trash2, X, Brain, CheckCircle, Camera, Lock, AlertCircle,
+  Eye, EyeOff, Shield, KeyRound, Sparkles, Users
 } from 'lucide-react';
 import Layout from '../components/layout/Layout';
 
@@ -32,7 +32,9 @@ export default function AdminDashboard() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [newUserData, setNewUserData] = useState({ email: '', name: '', role: 'USER' });
+  const [newUserData, setNewUserData] = useState({ email: '', name: '', role: 'USER', password: '', confirmPassword: '' });
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
+  const [showCreateConfirmPassword, setShowCreateConfirmPassword] = useState(false);
   const editingProvider = (editingUser?.provider || '').toUpperCase();
   const isEditingLocalUser = editingProvider === 'LOCAL';
   const editPassword = editingUser?.password || '';
@@ -79,9 +81,29 @@ export default function AdminDashboard() {
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
-    await userService.createUser(newUserData);
+    // Validate password if provided
+    if (newUserData.password) {
+      const pw = newUserData.password;
+      const strong = pw.length >= 8 && /[A-Z]/.test(pw) && /[0-9]/.test(pw) && /[!@#$%^&*(),.?":{}|<>]/.test(pw);
+      if (!strong) {
+        alert("Password must be at least 8 characters with uppercase, number, and special character.");
+        return;
+      }
+      if (pw !== newUserData.confirmPassword) {
+        alert("Passwords do not match!");
+        return;
+      }
+    }
+    await userService.createUser({
+      email: newUserData.email,
+      name: newUserData.name,
+      role: newUserData.role,
+      password: newUserData.password || null
+    });
     setIsCreateModalOpen(false);
-    setNewUserData({ email: '', name: '', role: 'USER' });
+    setNewUserData({ email: '', name: '', role: 'USER', password: '', confirmPassword: '' });
+    setShowCreatePassword(false);
+    setShowCreateConfirmPassword(false);
     fetchUsers();
   };
 
@@ -353,14 +375,20 @@ export default function AdminDashboard() {
           </motion.div>
 
           {/* Quick Stats */}
-          <div className="col-span-2 grid grid-cols-2 gap-6">
+          <div className="col-span-2 grid grid-cols-3 gap-6">
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 flex flex-col justify-center">
-              <h3 className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">Total Users</h3>
-              <p className="text-4xl font-bold mt-2 text-violet-600 dark:text-violet-400">{users.length}</p>
+              <div className="flex items-center gap-2 mb-2"><Users size={16} className="text-violet-500" /><h3 className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">Total Users</h3></div>
+              <p className="text-4xl font-bold text-violet-600 dark:text-violet-400">{users.length}</p>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 flex flex-col justify-center">
+              <div className="flex items-center gap-2 mb-2"><KeyRound size={16} className="text-blue-500" /><h3 className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">Local Auth</h3></div>
+              <p className="text-4xl font-bold text-blue-600 dark:text-blue-400">{users.filter(u => u.provider === 'LOCAL').length}</p>
+              <p className="text-xs text-zinc-400 mt-1">Email + Password</p>
             </motion.div>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 flex flex-col justify-center">
-              <h3 className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">Active Roles</h3>
-              <p className="text-4xl font-bold mt-2 text-amber-500">{roleDistribution.length}</p>
+              <div className="flex items-center gap-2 mb-2"><Shield size={16} className="text-green-500" /><h3 className="text-sm text-zinc-500 dark:text-zinc-400 font-medium">Google SSO</h3></div>
+              <p className="text-4xl font-bold text-green-600 dark:text-green-400">{users.filter(u => u.provider !== 'LOCAL').length}</p>
+              <p className="text-xs text-zinc-400 mt-1">OAuth 2.0</p>
             </motion.div>
           </div>
         </div>
@@ -459,23 +487,42 @@ export default function AdminDashboard() {
                 <tr>
                   <th className="px-6 py-4 font-semibold">User</th>
                   <th className="px-6 py-4 font-semibold">Role</th>
+                  <th className="px-6 py-4 font-semibold">Provider</th>
                   <th className="px-6 py-4 font-semibold">Joined</th>
                   <th className="px-6 py-4 font-semibold text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
                 {loading ? (
-                  <tr><td colSpan="4" className="px-6 py-8 text-center text-zinc-500">Loading users...</td></tr>
+                  <tr><td colSpan="5" className="px-6 py-8 text-center text-zinc-500">Loading users...</td></tr>
                 ) : filteredUsers.length === 0 ? (
-                  <tr><td colSpan="4" className="px-6 py-8 text-center text-zinc-500">No users found.</td></tr>
+                  <tr><td colSpan="5" className="px-6 py-8 text-center text-zinc-500">No users found.</td></tr>
                 ) : (
-                  filteredUsers.map((user) => (
-                    <tr key={user.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                  filteredUsers.map((user, idx) => (
+                    <motion.tr 
+                      key={user.id} 
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.03 }}
+                      className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
+                    >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <img src={user.picture || `https://ui-avatars.com/api/?name=${user.name || user.email}&background=random`} alt="" referrerPolicy="no-referrer" className="w-9 h-9 rounded-full object-cover" />
+                          <div className="relative">
+                            <img src={user.picture || `https://ui-avatars.com/api/?name=${user.name || user.email}&background=random`} alt="" referrerPolicy="no-referrer" className="w-9 h-9 rounded-full object-cover" />
+                            {user.createdAt && (Date.now() - new Date(user.createdAt).getTime()) < 86400000 && (
+                              <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center">
+                                <Sparkles size={12} className="text-amber-500 animate-pulse" />
+                              </span>
+                            )}
+                          </div>
                           <div>
-                            <div className="font-semibold text-zinc-900 dark:text-zinc-100">{user.name || 'Unnamed User'}</div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-zinc-900 dark:text-zinc-100">{user.name || 'Unnamed User'}</span>
+                              {user.createdAt && (Date.now() - new Date(user.createdAt).getTime()) < 86400000 && (
+                                <span className="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 text-[9px] font-bold uppercase tracking-wider">New</span>
+                              )}
+                            </div>
                             <div className="text-zinc-500 text-xs">{user.email}</div>
                           </div>
                         </div>
@@ -489,6 +536,16 @@ export default function AdminDashboard() {
                           {user.role}
                         </span>
                       </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                          user.provider === 'LOCAL' 
+                            ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400' 
+                            : 'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400'
+                        }`}>
+                          {user.provider === 'LOCAL' ? <KeyRound size={12} /> : <Shield size={12} />}
+                          {user.provider === 'LOCAL' ? 'Local' : 'Google'}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
                       </td>
@@ -496,7 +553,6 @@ export default function AdminDashboard() {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => {
-                              // Never prefill password (DB contains hashed value for LOCAL users)
                               setEditingUser({ ...user, password: '' });
                               setShowEditPassword(false);
                               setShowEditConfirmPassword(false);
@@ -512,7 +568,7 @@ export default function AdminDashboard() {
                           </button>
                         </div>
                       </td>
-                    </tr>
+                    </motion.tr>
                   ))
                 )}
               </tbody>
@@ -549,6 +605,63 @@ export default function AdminDashboard() {
                     <option value="ADMIN">Admin</option>
                   </select>
                 </div>
+                <div>
+                  <label className="flex items-center gap-1 text-sm font-medium mb-1"><Lock size={14} /> Password <span className="text-zinc-400 text-xs">(optional)</span></label>
+                  <div className="relative">
+                    <input 
+                      type={showCreatePassword ? "text" : "password"} 
+                      value={newUserData.password} 
+                      onChange={e => setNewUserData({...newUserData, password: e.target.value})} 
+                      className="w-full p-2.5 pr-10 rounded-xl border border-zinc-200 bg-white focus:ring-2 focus:ring-violet-500 outline-none dark:bg-zinc-950 dark:border-zinc-700" 
+                      placeholder="Leave blank for Google-only user" 
+                    />
+                    {newUserData.password.length > 0 && (
+                      <button type="button" onClick={() => setShowCreatePassword(v => !v)} className="absolute inset-y-0 right-0 flex items-center pr-3 text-zinc-400 hover:text-violet-500 transition-colors">
+                        {showCreatePassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {newUserData.password && (
+                  <>
+                    <div>
+                      <label className="flex items-center gap-1 text-sm font-medium mb-1"><Lock size={14} /> Confirm Password</label>
+                      <div className="relative">
+                        <input 
+                          type={showCreateConfirmPassword ? "text" : "password"} 
+                          value={newUserData.confirmPassword} 
+                          onChange={e => setNewUserData({...newUserData, confirmPassword: e.target.value})} 
+                          className="w-full p-2.5 pr-10 rounded-xl border border-zinc-200 bg-white focus:ring-2 focus:ring-violet-500 outline-none dark:bg-zinc-950 dark:border-zinc-700" 
+                          placeholder="Verify password" 
+                        />
+                        {newUserData.confirmPassword.length > 0 && (
+                          <button type="button" onClick={() => setShowCreateConfirmPassword(v => !v)} className="absolute inset-y-0 right-0 flex items-center pr-3 text-zinc-400 hover:text-violet-500 transition-colors">
+                            {showCreateConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 p-3 space-y-1.5">
+                      <div className={`flex items-center gap-2 text-xs font-medium ${newUserData.password.length >= 8 ? 'text-green-600' : 'text-zinc-400'}`}>
+                        <CheckCircle size={13} className={newUserData.password.length >= 8 ? 'opacity-100' : 'opacity-20'} /> 8+ characters
+                      </div>
+                      <div className={`flex items-center gap-2 text-xs font-medium ${/[A-Z]/.test(newUserData.password) ? 'text-green-600' : 'text-zinc-400'}`}>
+                        <CheckCircle size={13} className={/[A-Z]/.test(newUserData.password) ? 'opacity-100' : 'opacity-20'} /> One uppercase
+                      </div>
+                      <div className={`flex items-center gap-2 text-xs font-medium ${/[0-9]/.test(newUserData.password) ? 'text-green-600' : 'text-zinc-400'}`}>
+                        <CheckCircle size={13} className={/[0-9]/.test(newUserData.password) ? 'opacity-100' : 'opacity-20'} /> One number
+                      </div>
+                      <div className={`flex items-center gap-2 text-xs font-medium ${/[!@#$%^&*(),.?":{}|<>]/.test(newUserData.password) ? 'text-green-600' : 'text-zinc-400'}`}>
+                        <CheckCircle size={13} className={/[!@#$%^&*(),.?":{}|<>]/.test(newUserData.password) ? 'opacity-100' : 'opacity-20'} /> Special character
+                      </div>
+                      {newUserData.confirmPassword && newUserData.password !== newUserData.confirmPassword && (
+                        <div className="flex items-center gap-2 text-xs font-medium text-red-500">
+                          <AlertCircle size={13} /> Passwords do not match
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
                 <div className="pt-4 flex justify-end gap-3">
                   <button type="button" onClick={() => setIsCreateModalOpen(false)} className="px-4 py-2 text-sm font-medium rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors">Cancel</button>
                   <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-xl hover:bg-violet-700 transition-colors">Create User</button>

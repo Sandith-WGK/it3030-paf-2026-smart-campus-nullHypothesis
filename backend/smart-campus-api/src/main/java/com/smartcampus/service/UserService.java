@@ -22,14 +22,17 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final NotificationService notificationService;
+    private final UserActivityService userActivityService;
 
     @Autowired
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, 
-                       EmailService emailService, NotificationService notificationService) {
+                       EmailService emailService, NotificationService notificationService,
+                       UserActivityService userActivityService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
         this.notificationService = notificationService;
+        this.userActivityService = userActivityService;
     }
 
     public List<User> getAllUsers() {
@@ -41,21 +44,29 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
     }
 
-    public User createUser(String email, String name, Role role) {
+    public User createUser(String email, String name, Role role, String password) {
         // Prevent duplicates
         if (userRepository.existsByEmail(email)) {
              throw new RuntimeException("User already exists with email: " + email);
         }
 
-        // Stub user without passport/password since we use Google OAuth
-        User user = User.builder()
+        User.UserBuilder builder = User.builder()
                 .email(email)
                 .name(name)
                 .role(role != null ? role : Role.USER)
-                .provider("GOOGLE")
-                .createdAt(Instant.now())
-                .build();
-        return userRepository.save(user);
+                .createdAt(Instant.now());
+
+        if (password != null && !password.isBlank()) {
+            // Admin is creating a LOCAL user with a password
+            builder.provider("LOCAL")
+                   .password(passwordEncoder.encode(password))
+                   .enabled(true); // Admin-created users skip email verification
+        } else {
+            // Stub user for Google OAuth flow
+            builder.provider("GOOGLE");
+        }
+
+        return userRepository.save(builder.build());
     }
 
     public User updateUser(String id, String email, String name, Role role, String password, String picture, boolean requireEmailReverification) {
@@ -159,6 +170,9 @@ public class UserService {
             }
 
             if (emailChanged || passwordChanged) {
+                // Tier 2: Log security update
+                userActivityService.logActivity(user.getId(), "SECURITY_UPDATE");
+
                 if (requireEmailReverification) {
                     // SELF UPDATE -> Notify Admins
                     List<User> admins = userRepository.findByRole(Role.ADMIN);
@@ -223,6 +237,10 @@ public class UserService {
         }
 
         return savedPrimary != null ? savedPrimary : primaryUser;
+    }
+
+    public List<com.smartcampus.model.UserActivity> getUserActivity(String userId) {
+        return userActivityService.getUserActivity(userId);
     }
 
     public void deleteUser(String id) {
