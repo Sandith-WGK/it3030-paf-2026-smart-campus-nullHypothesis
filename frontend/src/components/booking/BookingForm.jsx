@@ -251,7 +251,9 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
     if (!form.startTime || !form.endTime) return null;
     return (
       approvedBookings.find(
-        (b) => b.startTime < form.endTime && b.endTime > form.startTime,
+        (b) =>
+          String(b.startTime).substring(0, 5) < form.endTime &&
+          String(b.endTime).substring(0, 5) > form.startTime,
       ) ?? null
     );
   }, [approvedBookings, form.startTime, form.endTime]);
@@ -294,8 +296,8 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
         (b) =>
           (b.userId === currentUserId || b.userId === String(currentUserId)) &&
           (b.status === 'PENDING' || b.status === 'APPROVED') &&
-          b.startTime < form.endTime &&
-          b.endTime > form.startTime,
+          String(b.startTime).substring(0, 5) < form.endTime &&
+          String(b.endTime).substring(0, 5) > form.startTime,
       ) ?? null
     );
   }, [allBookings, currentUserId, form.startTime, form.endTime]);
