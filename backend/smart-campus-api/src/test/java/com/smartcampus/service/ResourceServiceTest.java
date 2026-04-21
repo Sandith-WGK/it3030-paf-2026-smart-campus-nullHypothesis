@@ -5,6 +5,7 @@ import com.smartcampus.model.Resource;
 import com.smartcampus.model.ResourceStatus;
 import com.smartcampus.model.ResourceType;
 import com.smartcampus.repository.ResourceRepository;
+import com.smartcampus.repository.BookingRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -13,6 +14,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.LocalDate;
 
 import java.time.LocalTime;
 import java.util.List;
@@ -28,6 +31,12 @@ class ResourceServiceTest {
 
     @Mock
     private ResourceRepository resourceRepository;
+
+    @Mock
+    private BookingRepository bookingRepository;
+
+    @Mock
+    private NotificationService notificationService;
 
     @InjectMocks
     private ResourceService resourceService;
@@ -277,14 +286,19 @@ class ResourceServiceTest {
     class UpdateResourceStatus {
 
         @Test
-        @DisplayName("sets resource to OUT_OF_SERVICE")
+        @DisplayName("sets resource to OUT_OF_SERVICE and triggers notification check")
         void setsOutOfService() {
             when(resourceRepository.findById("res-001")).thenReturn(Optional.of(sampleHall));
             when(resourceRepository.save(any(Resource.class))).thenAnswer(inv -> inv.getArgument(0));
+            // Stub to prevent NPE during notification check
+            when(bookingRepository.findByResourceIdAndStatusInAndDateGreaterThanEqual(eq("res-001"), anyList(), any(LocalDate.class)))
+                    .thenReturn(List.of());
 
             Resource result = resourceService.updateResourceStatus("res-001", ResourceStatus.OUT_OF_SERVICE);
 
             assertThat(result.getStatus()).isEqualTo(ResourceStatus.OUT_OF_SERVICE);
+            verify(bookingRepository).findByResourceIdAndStatusInAndDateGreaterThanEqual(eq("res-001"), anyList(), any(LocalDate.class));
+            verify(notificationService, never()).sendNotification(any(), any(), any(), any(), any(), any());
         }
     }
 
