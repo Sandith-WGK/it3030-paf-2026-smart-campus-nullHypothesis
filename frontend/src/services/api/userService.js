@@ -31,5 +31,10 @@ export const userService = {
     const response = await api.put(`/users/${id}/preferences`, preferences);
     console.log(`[DEBUG] userService.updatePreferences RECEIVED [Status: ${response.status}] <- Payload:`, response.data);
     return response.data;
+  },
+
+  getUserActivity: async (id) => {
+    const response = await api.get(`/users/${id}/activity`);
+    return response.data;
   }
 };

@@ -50,8 +50,11 @@ public class AuthController {
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private com.smartcampus.service.UserActivityService userActivityService;
+
     @PostMapping("/login")
-    public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest, jakarta.servlet.http.HttpServletRequest request) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         loginRequest.getEmail(),
@@ -97,11 +100,14 @@ public class AuthController {
         user.setTwoFactorCodeExpiresAt(null);
         userRepository.save(user);
 
+        // Tier 2: Log successful login
+        userActivityService.logActivity(user.getId(), "LOGIN_SUCCESS", request);
+
         return ResponseEntity.ok(new AuthResponse(jwt, userPrincipal.getUsername(), role));
     }
 
     @PostMapping("/verify-2fa")
-    public ResponseEntity<?> verifyTwoFactor(@RequestBody VerifyTwoFactorRequest request) {
+    public ResponseEntity<?> verifyTwoFactor(@RequestBody VerifyTwoFactorRequest request, jakarta.servlet.http.HttpServletRequest httpRequest) {
         User user = userRepository.findById(request.getUserId()).orElse(null);
         if (user == null) {
             return ResponseEntity.badRequest().body("Error: User not found.");
@@ -129,6 +135,9 @@ public class AuthController {
         user.setTwoFactorCode(null);
         user.setTwoFactorCodeExpiresAt(null);
         userRepository.save(user);
+
+        // Tier 2: Log successful login (via 2FA)
+        userActivityService.logActivity(user.getId(), "LOGIN_SUCCESS_2FA", httpRequest);
 
         String jwt = jwtProvider.generateTokenFromUser(user);
         return ResponseEntity.ok(new AuthResponse(jwt, user.getEmail(), user.getRole().name()));
