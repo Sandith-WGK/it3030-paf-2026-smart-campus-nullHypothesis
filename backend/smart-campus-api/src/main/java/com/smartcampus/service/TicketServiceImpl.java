@@ -66,8 +66,24 @@ public class TicketServiceImpl implements TicketService {
     }
 
     @Override
-    public TicketResponse updateTicketStatus(String id, TicketStatus newStatus, String resolutionNote, String rejectionReason) {
+    public List<TicketResponse> getTicketsByAssignee(String assigneeId) {
+        
+        List<Ticket> tickets = ticketRepository.findByAssigneeId(assigneeId);
+        
+        return tickets.stream()
+                .filter(t -> t.getStatus() == TicketStatus.OPEN || t.getStatus() == TicketStatus.IN_PROGRESS)
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+    @Override
+    public TicketResponse updateTicketStatus(String id, TicketStatus newStatus, String resolutionNote, String rejectionReason, String authenticatedUserId, boolean isAdmin) {
         Ticket ticket = getTicketEntity(id);
+
+        // Security logic: Technicians can only edit tickets assigned to them
+        if (!isAdmin && !authenticatedUserId.equals(ticket.getAssigneeId())) {
+            throw new com.smartcampus.exception.UnauthorizedActionException("You are not authorized to update this ticket.");
+        }
+
         TicketStatus currentStatus = ticket.getStatus();
 
         boolean validTransition = false;
