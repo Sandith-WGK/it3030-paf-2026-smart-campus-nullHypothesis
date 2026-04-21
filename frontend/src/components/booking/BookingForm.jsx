@@ -215,7 +215,7 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
 
   useEffect(() => {
     if (!activeResourceId || !form.date) {
-      setSlots([]); // eslint-disable-line react-hooks/set-state-in-effect
+      setSlots([]);
       setAllBookings([]);
       return;
     }
