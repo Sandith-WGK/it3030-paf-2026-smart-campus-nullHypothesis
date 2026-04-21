@@ -30,6 +30,9 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
     @Autowired
     private EmailService emailService;
 
+    @Autowired
+    private com.smartcampus.service.UserActivityService userActivityService;
+
     @Value("${app.oauth2.redirectUri}")
     private String redirectUri;
 
@@ -70,6 +73,9 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
         user.setTwoFactorCode(null);
         user.setTwoFactorCodeExpiresAt(null);
         userRepository.save(user);
+
+        // Tier 2: Log successful social login
+        userActivityService.logActivity(user.getId(), "LOGIN_SUCCESS_SOCIAL", request);
 
         String token = jwtProvider.generateToken(authentication);
 
