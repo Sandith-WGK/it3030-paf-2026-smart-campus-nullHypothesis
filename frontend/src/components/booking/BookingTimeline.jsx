@@ -10,20 +10,28 @@ function timeToMinutes(timeStr) {
   return h * 60 + m;
 }
 
-const DAY_START = 7 * 60;  // 07:00
-const DAY_END = 22 * 60;   // 22:00
-const DAY_SPAN = DAY_END - DAY_START;
-
-const HOUR_MARKS = Array.from({ length: 16 }, (_, i) => i + 7); // 07 – 22
+// DAY_START / DAY_END are now computed from props (Task 8) — see component body.
+// These module-level constants are removed in favour of prop-derived values.
 
 /**
  * Props:
- *  bookings      – APPROVED-only booking list (filtered by parent)
- *  highlightId   – optional booking id to ring-highlight
- *  selectedRange – { start: 'HH:MM', end: 'HH:MM' } for the violet overlay
- *  slotBooked    – boolean: true if any approved booking overlaps the selected range
+ *  bookings           – APPROVED-only booking list (filtered by parent)
+ *  highlightId        – optional booking id to ring-highlight
+ *  selectedRange      – { start: 'HH:MM', end: 'HH:MM' } for the violet overlay
+ *  slotBooked         – boolean: true if any approved booking overlaps the selected range
+ *  availableStartTime – resource opening time string e.g. '08:00' (Task 8)
+ *  availableEndTime   – resource closing time string e.g. '18:00' (Task 8)
  */
-export default function BookingTimeline({ bookings = [], highlightId, selectedRange, slotBooked }) {
+export default function BookingTimeline({ bookings = [], highlightId, selectedRange, slotBooked, availableStartTime = '07:00', availableEndTime = '22:00' }) {
+  // Task 8: derive scale from resource availability props
+  const DAY_START = timeToMinutes(availableStartTime);
+  const DAY_END   = timeToMinutes(availableEndTime);
+  const DAY_SPAN  = DAY_END - DAY_START;
+
+  // Build hour tick marks from opening hour up to (and including) closing hour
+  const startHour = Math.floor(DAY_START / 60);
+  const endHour   = Math.ceil(DAY_END / 60);
+  const HOUR_MARKS = Array.from({ length: endHour - startHour + 1 }, (_, i) => i + startHour);
   const selectedStart = selectedRange ? timeToMinutes(selectedRange.start) : null;
   const selectedEnd   = selectedRange ? timeToMinutes(selectedRange.end)   : null;
   const selectedValid =

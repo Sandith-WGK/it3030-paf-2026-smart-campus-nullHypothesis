@@ -83,9 +83,11 @@ public class BookingController {
     @GetMapping("/resource-schedule")
     public ResponseEntity<ApiResponse<List<BookingResponse>>> getResourceSchedule(
             @RequestParam String resourceId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @AuthenticationPrincipal UserPrincipal principal) {
 
-        List<BookingResponse> bookings = bookingService.getResourceSchedule(resourceId, date);
+        // Task 7: pass requesting user id so the service can anonymise other users' PENDING bookings
+        List<BookingResponse> bookings = bookingService.getResourceSchedule(resourceId, date, principal.getId());
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.maxAge(30, TimeUnit.SECONDS))
                 .body(ApiResponse.success("Resource schedule retrieved", bookings));

@@ -428,26 +428,58 @@ public class BookingService {
 
     // ── Resource Schedule ─────────────────────────────────────────────────────
 
-    public List<BookingResponse> getResourceSchedule(String resourceId, LocalDate date) {
+    // Task 7: Privacy fix for getResourceSchedule.
+    // APPROVED bookings are returned in full (all authenticated users need to see them to
+    // judge availability before booking).
+    // PENDING bookings: the requesting user sees their own in full (so the frontend
+    // userDuplicate check still works). Other users' PENDING bookings are anonymised —
+    // we expose only timing/status so they know the slot is "tentatively busy", but
+    // no userId, name, email, or purpose is leaked.
+    public List<BookingResponse> getResourceSchedule(String resourceId, LocalDate date, String requestingUserId) {
         Resource resource = resourceRepository.findById(resourceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Resource", "id", resourceId));
 
-        // Returns APPROVED bookings (for timeline rendering) AND PENDING bookings
-        // (so the frontend can detect duplicate bookings for the current user via userDuplicate check).
-        // The frontend filters to APPROVED-only before rendering the timeline blocks.
         List<Booking> approved = bookingRepository
                 .findByResourceIdAndDateAndStatus(resourceId, date, BookingStatus.APPROVED);
         List<Booking> pending = bookingRepository
                 .findByResourceIdAndDateAndStatus(resourceId, date, BookingStatus.PENDING);
 
-        List<Booking> bookings = new ArrayList<>();
-        bookings.addAll(approved);  // APPROVED first — frontend can filter by status field
-        bookings.addAll(pending);
+        // Build a user map only for the approved bookings + the requesting user's own pending ones
+        List<Booking> fullDetailBookings = new ArrayList<>();
+        fullDetailBookings.addAll(approved);
+        pending.stream()
+               .filter(b -> b.getUserId().equals(requestingUserId))
+               .forEach(fullDetailBookings::add);
 
-        Map<String, User> userMap = buildUserMap(bookings);
-        return bookings.stream()
-                .map(b -> BookingResponse.from(b, resource, userMap.get(b.getUserId())))
-                .collect(Collectors.toList());
+        Map<String, User> userMap = buildUserMap(fullDetailBookings);
+
+        List<BookingResponse> result = new ArrayList<>();
+
+        // Full detail for APPROVED bookings
+        for (Booking b : approved) {
+            result.add(BookingResponse.from(b, resource, userMap.get(b.getUserId())));
+        }
+
+        // PENDING: own = full detail, others = anonymous "Busy" block
+        for (Booking b : pending) {
+            if (b.getUserId().equals(requestingUserId)) {
+                result.add(BookingResponse.from(b, resource, userMap.get(b.getUserId())));
+            } else {
+                // Strip PII — only expose timing so the frontend avoids the slot
+                result.add(BookingResponse.builder()
+                        .id(b.getId())
+                        .resourceId(b.getResourceId())
+                        .resourceName(resource.getName())
+                        .date(b.getDate())
+                        .startTime(b.getStartTime())
+                        .endTime(b.getEndTime())
+                        .status(b.getStatus())
+                        // userId / userName / userEmail / purpose intentionally omitted
+                        .build());
+            }
+        }
+
+        return result;
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

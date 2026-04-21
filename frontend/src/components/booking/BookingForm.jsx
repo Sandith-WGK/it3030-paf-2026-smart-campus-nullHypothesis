@@ -51,7 +51,8 @@ function generateTimeOptions(start = '07:00', end = '22:00') {
   const opts = [];
   let cur = timeToMinutes(start);
   const endMin = timeToMinutes(end);
-  while (cur < endMin) {
+  // Use <= so the resource's exact closing time is included as a selectable option (Task 1)
+  while (cur <= endMin) {
     opts.push(minutesToTime(cur));
     cur += 30;
   }
@@ -177,6 +178,17 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
       .finally(() => setResourcesLoading(false));
   }, [fixedResourceId]);
 
+  // Task 4: When in rebooking mode, auto-select the resource and skip straight to step 2
+  useEffect(() => {
+    if (fixedResourceId || !initial.resourceId || resources.length === 0) return;
+    const match = resources.find((r) => r.id === initial.resourceId);
+    if (match && !form.resourceId) {
+      setField('resourceId', match.id);
+      setUiStep(2);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resources]);
+
   const selectedResource = useMemo(
     () => resources.find((r) => r.id === form.resourceId) ?? null,
     [resources, form.resourceId],
@@ -234,12 +246,41 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
   // Exclusive mode: slot is blocked if ANY approved booking overlaps the selected range.
   // false (not null) when no time is selected — the Next button stays enabled until
   // the user picks times and we can legitimately evaluate a conflict.
+  // Task 6: use .find() instead of .some() so we can display the exact conflicting reservation times
   const slotBooked = useMemo(() => {
-    if (!form.startTime || !form.endTime) return false;
-    return approvedBookings.some(
-      (b) => b.startTime < form.endTime && b.endTime > form.startTime,
+    if (!form.startTime || !form.endTime) return null;
+    return (
+      approvedBookings.find(
+        (b) => b.startTime < form.endTime && b.endTime > form.startTime,
+      ) ?? null
     );
   }, [approvedBookings, form.startTime, form.endTime]);
+
+  // Task 3: Suggest the next available 1-hour and 2-hour blocks
+  const suggestedSlots = useMemo(() => {
+    if (!activeResource || !form.date) return [];
+    const windowStart = String(activeResource?.availabilityStart ?? activeResource?.availableStartTime ?? '07:00').substring(0, 5);
+    const windowEnd   = String(activeResource?.availabilityEnd   ?? activeResource?.availableEndTime   ?? '22:00').substring(0, 5);
+    const wsMin = timeToMinutes(windowStart);
+    const weMin = timeToMinutes(windowEnd);
+    const occupied = approvedBookings.map((b) => ({
+      start: timeToMinutes(String(b.startTime).substring(0, 5)),
+      end:   timeToMinutes(String(b.endTime).substring(0, 5)),
+    }));
+    const isFree = (s, e) => !occupied.some((o) => o.start < e && o.end > s);
+    const suggestions = [];
+    for (const duration of [60, 120]) {
+      let cursor = wsMin;
+      while (cursor + duration <= weMin) {
+        if (isFree(cursor, cursor + duration)) {
+          suggestions.push({ start: minutesToTime(cursor), end: minutesToTime(cursor + duration), label: duration === 60 ? '1 hr' : '2 hrs' });
+          break;
+        }
+        cursor += 30;
+      }
+    }
+    return suggestions;
+  }, [approvedBookings, activeResource, form.date]);
 
   // ── Duplicate booking detection ──────────────────────────────────────────────────
   // Finds the current user's own PENDING/APPROVED booking that overlaps the
@@ -281,7 +322,7 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
           e.date = 'Cannot book a date in the past.';
       }
       if (slotBooked)
-        e.slot = 'This time slot already has an approved booking. Please choose a different time.';
+        e.slot = `⛔ This conflicts with an existing reservation from ${slotBooked.startTime} to ${slotBooked.endTime}. Please choose a different time.`;
     }
     if (step === 3) {
       if (!form.purpose || form.purpose.trim().length < 5)
@@ -376,7 +417,8 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
   );
 
   return (
-    <div>
+    // Task 5 & Date Picker Fix: flex-col so the sticky action bar stays pinned at the bottom, h-full and relative for proper layout boundaries
+    <div className="flex flex-col h-full relative">
       <StepIndicator steps={stepLabels} currentStep={uiStep} />
 
       <AnimatePresence mode="wait">
@@ -502,7 +544,7 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.18 }}
-            className="space-y-5"
+            className="space-y-5 pb-48" /* Added pb-48 to ensure the popover calendar doesn't get clipped and can open fully */
           >
             {/* Selected resource summary */}
             {activeResource && (
@@ -523,7 +565,7 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
             )}
 
             {/* ── Calendar date picker ── */}
-            <div>
+            <div className="relative z-50">
               <label className={labelClass}>Date *</label>
               <div className="relative" ref={calendarRef}>
                 <button
@@ -546,7 +588,7 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
 
                 {calendarOpen && (
                   <div
-                    className="absolute z-50 top-full mt-1 left-0 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-2xl overflow-hidden"
+                    className="absolute z-50 top-full mt-1 left-0 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 shadow-xl overflow-hidden"
                     style={{
                       '--rdp-accent-color': '#7c3aed',
                       '--rdp-accent-background-color': '#ede9fe',
@@ -620,13 +662,17 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
                     <BookingTimeline
                       bookings={approvedBookings}
                       selectedRange={selectedRange}
-                      slotBooked={slotBooked}
+                      slotBooked={!!slotBooked}
+                      availableStartTime={String(activeResource?.availabilityStart ?? activeResource?.availableStartTime ?? '07:00').substring(0, 5)}
+                      availableEndTime={String(activeResource?.availabilityEnd ?? activeResource?.availableEndTime ?? '22:00').substring(0, 5)}
                     />
 
-                    {/* Slot booked error (exclusive mode) */}
+                    {/* Task 6: Slot booked — show exact conflicting reservation times */}
                     {slotBooked && (
                       <p className="text-xs text-red-500 mt-3 font-medium">
-                        ⛔ This time slot is already reserved. Please choose a different time.
+                        ⛔ This conflicts with an existing reservation from{' '}
+                        <span className="font-bold">{slotBooked.startTime}</span> to{' '}
+                        <span className="font-bold">{slotBooked.endTime}</span>. Please choose a different time.
                       </p>
                     )}
 
@@ -635,11 +681,44 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
                       <p className={`${errorClass} mt-2`}>{errors.slot}</p>
                     )}
 
-                    {/* Quick-pick free slots */}
-                    {slots.length > 0 ? (
+                    {/* Task 3: Quick-pick — 1h and 2h suggested blocks */}
+                    {suggestedSlots.length > 0 && (
                       <div className="mt-4">
                         <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2">
-                          Quick-pick a free slot
+                          Suggested slots
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {suggestedSlots.map((slot) => {
+                            const isSelected =
+                              form.startTime === slot.start && form.endTime === slot.end;
+                            return (
+                              <button
+                                key={`${slot.start}-${slot.end}`}
+                                type="button"
+                                onClick={() => {
+                                  setField('startTime', slot.start);
+                                  setField('endTime', slot.end);
+                                }}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                                  isSelected
+                                    ? 'bg-violet-600 text-white'
+                                    : 'bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20'
+                                }`}
+                              >
+                                {slot.start} – {slot.end}
+                                <span className="ml-1 opacity-60">({slot.label})</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* All free windows */}
+                    {slots.length > 0 ? (
+                      <div className="mt-3">
+                        <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-2">
+                          All free windows
                         </p>
                         <div className="flex flex-wrap gap-2">
                           {slots.map((slot) => {
@@ -656,7 +735,7 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
                                 className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                                   isSelected
                                     ? 'bg-violet-600 text-white'
-                                    : 'bg-violet-50 text-violet-700 hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20'
+                                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600'
                                 }`}
                               >
                                 {slot.start} – {slot.end}
@@ -778,8 +857,8 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
         )}
       </AnimatePresence>
 
-      {/* ── Navigation ── */}
-      <div className={`flex mt-6 ${uiStep > 1 ? 'justify-between' : 'justify-end'}`}>
+      {/* Task 5: Sticky bottom action bar — always visible without scrolling. Uses z-20 to stay under the z-50 calendar popover */}
+      <div className={`flex mt-6 sticky bottom-0 z-20 bg-white dark:bg-gray-800 p-4 border-t border-zinc-200 dark:border-zinc-700 -mx-1 rounded-b-2xl ${uiStep > 1 ? 'justify-between' : 'justify-end'}`}>
         {uiStep > 1 && (
           <button
             type="button"
