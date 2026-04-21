@@ -52,22 +52,18 @@ export const AuthProvider = ({ children }) => {
         setUser(decodedUser); // eslint-disable-line react-hooks/set-state-in-effect
         setIsAuthenticated(true);
 
-        // If key fields are missing from token (common after relogin for big picture),
-        // fetch the full user record once and merge it.
-        if (!isValidPictureSrc(decodedUser.picture) || !decodedUser.provider) {
-          const id = decodedUser.userId || decodedUser.sub || decodedUser.id;
-          if (id) {
-            (async () => {
-              try {
-                const freshUser = await userService.getUserById(id);
-                if (isValidPictureSrc(freshUser?.picture)) localStorage.setItem('user_pic', freshUser.picture);
-                console.log('[DEBUG] AuthContext -> Merging fresh user from BACKEND:', freshUser);
-                setUser(prev => ({ ...prev, ...freshUser }));
-              } catch {
-                // Non-fatal: profile will fall back to avatar placeholder
-              }
-            })();
-          }
+        const id = decodedUser.userId || decodedUser.sub || decodedUser.id;
+        if (id) {
+          (async () => {
+            try {
+              const freshUser = await userService.getUserById(id);
+              if (isValidPictureSrc(freshUser?.picture)) localStorage.setItem('user_pic', freshUser.picture);
+              console.log('[DEBUG] AuthContext -> Merging fresh user from BACKEND:', freshUser);
+              setUser(prev => ({ ...prev, ...freshUser }));
+            } catch (err) {
+              console.error('[DEBUG] AuthContext -> Fresh user fetch failed:', err);
+            }
+          })();
         }
       } else {
         setIsAuthenticated(false);
@@ -125,8 +121,17 @@ export const AuthProvider = ({ children }) => {
         ? { ...(prev.preferences || {}), ...newData.preferences }
         : prev.preferences;
 
+      const updatedNotifPreferences = newData.notificationPreferences
+        ? { ...(prev.notificationPreferences || {}), ...newData.notificationPreferences }
+        : prev.notificationPreferences;
+
       console.log('[DEBUG] AuthContext -> Performing Deep Merge Update. Changes:', newData);
-      const updated = { ...prev, ...newData, preferences: updatedPreferences };
+      const updated = { 
+        ...prev, 
+        ...newData, 
+        preferences: updatedPreferences,
+        notificationPreferences: updatedNotifPreferences 
+      };
       console.log('[DEBUG] AuthContext -> Final Updated User Object:', updated);
       
       // Sync large fields to localStorage if they were updated

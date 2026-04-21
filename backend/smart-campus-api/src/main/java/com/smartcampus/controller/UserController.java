@@ -81,6 +81,14 @@ public class UserController {
         return ResponseEntity.ok(userService.updateUserPreferences(id, request));
     }
 
+    @PutMapping("/{id}/notification-preferences")
+    @PreAuthorize("hasRole('ADMIN') or #id == principal.userId")
+    public ResponseEntity<User> updateNotificationPreferences(
+            @PathVariable String id,
+            @RequestBody com.smartcampus.model.NotificationPreference request) {
+        return ResponseEntity.ok(userService.updateNotificationPreferences(id, request));
+    }
+
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> deleteUser(@PathVariable String id) {

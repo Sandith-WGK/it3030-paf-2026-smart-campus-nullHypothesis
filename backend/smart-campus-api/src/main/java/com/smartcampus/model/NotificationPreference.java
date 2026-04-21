@@ -16,4 +16,8 @@ public class NotificationPreference {
     private boolean tickets = true;
     @Builder.Default
     private boolean security = true;
+    @Builder.Default
+    private boolean announcements = true;
+    @Builder.Default
+    private boolean resources = true;
 }
