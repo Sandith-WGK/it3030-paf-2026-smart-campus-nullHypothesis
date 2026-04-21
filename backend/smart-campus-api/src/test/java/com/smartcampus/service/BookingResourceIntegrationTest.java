@@ -45,6 +45,7 @@ class BookingResourceIntegrationTest {
     @InjectMocks
     private BookingService bookingService;
 
+    @InjectMocks
     private ResourceService resourceService;
 
     private final String USER_ID = "user-integration";
@@ -54,8 +55,6 @@ class BookingResourceIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        resourceService = new ResourceService(resourceRepository);
-
         testUser = User.builder()
                 .id(USER_ID)
                 .name("Integration Tester")

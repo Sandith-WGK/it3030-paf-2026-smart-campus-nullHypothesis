@@ -30,6 +30,7 @@ const TypeIcon = ({ type }) => {
 export default function NotificationPanel({ 
   notifications = [], 
   onMarkRead, 
+  onMarkAllRead,
   onDelete, 
   onDeleteAll,
   userRole,
