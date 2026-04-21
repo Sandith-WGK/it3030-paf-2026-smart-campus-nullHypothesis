@@ -27,6 +27,10 @@ export function isAdmin() {
   return getUserRole() === 'ADMIN';
 }
 
+export function isTechnician() {
+  return getUserRole() === 'TECHNICIAN';
+}
+
 export function isAuthenticated() {
   const token = localStorage.getItem('token');
   if (!token) return false;
