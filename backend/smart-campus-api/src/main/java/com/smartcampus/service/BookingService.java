@@ -13,17 +13,17 @@ import com.smartcampus.model.*;
 import com.smartcampus.repository.BookingRepository;
 import com.smartcampus.repository.ResourceRepository;
 import com.smartcampus.repository.UserRepository;
-import com.smartcampus.service.NotificationService;
+import com.smartcampus.security.RoleAccess;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -51,6 +51,9 @@ public class BookingService {
         validateCapacity(resource, request.getExpectedAttendees());
         checkForDuplicateBooking(request.getResourceId(), userId, request.getDate(), request.getStartTime(), request.getEndTime(), null);
         checkForConflicts(request.getResourceId(), request.getDate(), request.getStartTime(), request.getEndTime(), null);
+        User requester = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        validateRoleBookingPolicy(requester, resource, request.getDate(), request.getStartTime(), request.getEndTime(), userId);
 
         Booking booking = Booking.builder()
                 .resourceId(request.getResourceId())
@@ -64,10 +67,10 @@ public class BookingService {
                 .build();
 
         Booking saved = bookingRepository.save(booking);
-        User user = userRepository.findById(userId).orElse(null);
+        User user = requester;
         
         // Notify all admins about the new booking
-        List<User> admins = userRepository.findByRole(Role.ADMIN);
+        List<User> admins = userRepository.findByRole(Role.MANAGER);
         String userName = user != null ? user.getName() : "A user";
         String resourceName = resource != null ? resource.getName() : "resource";
         for (User admin : admins) {
@@ -283,7 +286,7 @@ public class BookingService {
             );
         } else if (!isAdmin && booking.getUserId().equals(userId)) {
             // Notify all admins when a user cancels their own booking
-            List<User> admins = userRepository.findByRole(Role.ADMIN);
+            List<User> admins = userRepository.findByRole(Role.MANAGER);
             User user = userRepository.findById(userId).orElse(null);
             String userName = user != null ? user.getName() : "A user";
             String resourceName = resource != null ? resource.getName() : "resource";
@@ -553,6 +556,33 @@ public class BookingService {
             throw new InvalidBookingStateException(String.format(
                     "Expected attendees (%d) exceeds resource capacity (%d)",
                     expectedAttendees, resource.getCapacity()));
+        }
+    }
+
+    private void validateRoleBookingPolicy(User requester, Resource resource, LocalDate date,
+                                           LocalTime startTime, LocalTime endTime, String userId) {
+        Role role = requester.getRole();
+        if (!RoleAccess.canBookResource(role, resource.getType())) {
+            throw new InvalidBookingStateException("RESOURCE_TYPE_NOT_ALLOWED_FOR_ROLE");
+        }
+
+        long durationHours = ChronoUnit.MINUTES.between(startTime, endTime);
+        long maxMinutes = RoleAccess.maxBookingHours(role) * 60;
+        if (durationHours > maxMinutes) {
+            throw new InvalidBookingStateException("BOOKING_DURATION_EXCEEDS_ROLE_LIMIT");
+        }
+
+        long horizon = ChronoUnit.DAYS.between(LocalDate.now(), date);
+        if (horizon > RoleAccess.bookingHorizonDays(role)) {
+            throw new InvalidBookingStateException("BOOKING_HORIZON_EXCEEDED");
+        }
+
+        int activeFutureCount = (int) bookingRepository.findByUserId(userId).stream()
+                .filter(b -> (b.getStatus() == BookingStatus.PENDING || b.getStatus() == BookingStatus.APPROVED))
+                .filter(b -> !b.getDate().isBefore(LocalDate.now()))
+                .count();
+        if (activeFutureCount >= RoleAccess.maxActiveFutureBookings(role)) {
+            throw new InvalidBookingStateException("ACTIVE_BOOKING_LIMIT_EXCEEDED");
         }
     }
 

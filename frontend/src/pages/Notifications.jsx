@@ -95,15 +95,15 @@ export default function Notifications() {
     if (!notif.isRead) handleMarkRead(notif.id);
     
     if (notif.referenceType === 'BOOKING') {
-      if (notif.type === 'BOOKING_CREATED' && user?.role === 'ADMIN') navigate('/admin/bookings');
+      if (notif.type === 'BOOKING_CREATED' && user?.role === 'MANAGER') navigate('/admin/bookings');
       else navigate(`/bookings/${notif.referenceId}`);
     } else if (notif.referenceType === 'RESOURCE' || notif.type === 'RESOURCE_UPDATE') {
       navigate(`/resources/${notif.referenceId}`);
     } else if (notif.referenceType === 'TICKET' || (notif.type && notif.type.startsWith('TICKET'))) {
-      if (notif.type === 'TICKET_CREATED' && user?.role === 'ADMIN') navigate('/admin/tickets');
+      if (notif.type === 'TICKET_CREATED' && user?.role === 'MANAGER') navigate('/admin/tickets');
       else navigate(`/tickets/${notif.referenceId}`);
     } else if (notif.type === 'SECURITY_UPDATE') {
-      if (user?.role === 'ADMIN') navigate('/admin/users');
+      if (user?.role === 'MANAGER') navigate('/admin/users');
       else navigate('/profile');
     }
   };

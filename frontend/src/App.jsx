@@ -51,7 +51,7 @@ const PrivateRoute = ({ children }) => {
   return isAuthenticated ? children : <Navigate to="/" replace />;
 };
 
-// A wrapper for admin-only routes
+// A wrapper for manager-only routes
 const AdminRoute = ({ children }) => {
   const { user, isAuthenticated, loading } = useAuth();
   
@@ -64,7 +64,7 @@ const AdminRoute = ({ children }) => {
   }
   
   if (!isAuthenticated) return <Navigate to="/" replace />;
-  if (user?.role !== 'ADMIN') return <Navigate to="/dashboard" replace />;
+  if (user?.role !== 'MANAGER') return <Navigate to="/dashboard" replace />;
   
   return children;
 };

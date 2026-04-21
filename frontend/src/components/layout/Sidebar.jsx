@@ -27,11 +27,11 @@ const sectionLabelText = 'text-[11px] font-semibold uppercase tracking-wider tex
 export default function Sidebar({ open, onClose }) {
   // Use the auth context so we only run admin checks once the user is fully loaded
   const { user, loading } = useAuth();
-  const admin = user?.role === 'ADMIN';
+  const admin = user?.role === 'MANAGER';
   const [pendingCount, setPendingCount] = useState(0);
 
   useEffect(() => {
-    // Wait until auth is resolved and the user is confirmed as ADMIN
+    // Wait until auth is resolved and the user is confirmed as MANAGER
     if (loading || !admin) return;
     bookingService
       .getAllBookings({ status: 'PENDING' })

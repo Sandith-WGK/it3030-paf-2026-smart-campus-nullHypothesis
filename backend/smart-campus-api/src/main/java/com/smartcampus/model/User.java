@@ -40,7 +40,7 @@ public class User {
     private String password; // Hashed password for local auth
 
     @Builder.Default
-    private Role role = Role.USER; // default role for new users
+    private Role role = Role.UNDERGRADUATE_STUDENT; // default role for new users
 
     @Builder.Default
     private boolean enabled = false; // user must verify email to be enabled

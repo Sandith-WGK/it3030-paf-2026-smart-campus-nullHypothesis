@@ -78,6 +78,7 @@ class BookingServiceTest {
                 .id(USER_ID)
                 .name("Test User")
                 .email("test@sliit.lk")
+                .role(Role.UNDERGRADUATE_STUDENT)
                 .build();
 
         validRequest = BookingRequest.builder()
@@ -108,7 +109,7 @@ class BookingServiceTest {
                 return b;
             });
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser));
-            when(userRepository.findByRole(Role.ADMIN)).thenReturn(List.of());
+            when(userRepository.findByRole(Role.MANAGER)).thenReturn(List.of());
 
             BookingResponse result = bookingService.createBooking(validRequest, USER_ID);
 
@@ -257,7 +258,7 @@ class BookingServiceTest {
                 return b;
             });
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser));
-            when(userRepository.findByRole(Role.ADMIN)).thenReturn(List.of());
+            when(userRepository.findByRole(Role.MANAGER)).thenReturn(List.of());
 
             BookingRequest afterExisting = BookingRequest.builder()
                     .resourceId("res-001")
@@ -398,8 +399,8 @@ class BookingServiceTest {
 
             when(bookingRepository.findById("booking-003")).thenReturn(Optional.of(approved));
             when(bookingRepository.save(any(Booking.class))).thenAnswer(inv -> inv.getArgument(0));
-            User adminUser = User.builder().id("admin-001").role(Role.ADMIN).build();
-            when(userRepository.findByRole(Role.ADMIN)).thenReturn(List.of(adminUser));
+            User adminUser = User.builder().id("admin-001").role(Role.MANAGER).build();
+            when(userRepository.findByRole(Role.MANAGER)).thenReturn(List.of(adminUser));
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser));
             when(resourceRepository.findById("res-001")).thenReturn(Optional.of(activeRoom));
 

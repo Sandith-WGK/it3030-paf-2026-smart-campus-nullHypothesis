@@ -36,7 +36,7 @@ const VerifyTwoFactor = () => {
       const data = await authService.verifyTwoFactor(userId, otp);
       login(data.token);
 
-      if (data.role === 'ADMIN') {
+      if (data.role === 'MANAGER') {
         navigate('/admin/users', { replace: true });
       } else {
         navigate('/dashboard', { replace: true });

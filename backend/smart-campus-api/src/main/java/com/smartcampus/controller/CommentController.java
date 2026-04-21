@@ -54,7 +54,7 @@ public class CommentController {
             @PathVariable String commentId,
             @AuthenticationPrincipal UserPrincipal principal) {
         boolean isAdmin = principal.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+                .anyMatch(a -> a.getAuthority().equals("ROLE_MANAGER"));
                 
         commentService.deleteComment(commentId, principal.getId(), isAdmin);
         return ResponseEntity.noContent().build();

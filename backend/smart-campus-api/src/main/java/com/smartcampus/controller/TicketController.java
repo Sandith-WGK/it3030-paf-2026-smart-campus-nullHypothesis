@@ -42,7 +42,7 @@ public class TicketController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ApiResponse<List<TicketResponse>>> getAllTickets(
             @RequestParam(required = false) TicketStatus status,
             @RequestParam(required = false) Priority priority) {
@@ -58,7 +58,7 @@ public class TicketController {
     }
 
     @PutMapping("/{id}/status")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('TECHNICIAN')")
+    @PreAuthorize("hasRole('MANAGER') or hasRole('TECHNICIAN')")
     public ResponseEntity<ApiResponse<TicketResponse>> updateTicketStatus(
             @PathVariable String id,
             @RequestBody TicketUpdateRequest request) {
@@ -68,7 +68,7 @@ public class TicketController {
     }
 
     @PutMapping("/{id}/assign")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ApiResponse<TicketResponse>> assignTechnician(
             @PathVariable String id,
             @RequestBody TicketUpdateRequest request) {
@@ -88,7 +88,7 @@ public class TicketController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<Void> deleteTicket(@PathVariable String id) {
         ticketService.deleteTicket(id);
         return ResponseEntity.noContent().build();

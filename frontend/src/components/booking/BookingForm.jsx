@@ -9,6 +9,7 @@ import bookingService from '../../services/api/bookingService';
 import BookingTimeline from './BookingTimeline';
 import ConfirmModal from './ConfirmModal';
 import { CalendarDays, Clock, Loader2, Search, ChevronRight, ChevronLeft, Check } from 'lucide-react';
+import { getRoleLabel } from '../../utils/auth';
 
 // ─── Time utilities ────────────────────────────────────────────────────────────
 
@@ -119,6 +120,47 @@ function StepIndicator({ steps, currentStep }) {
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export default function BookingForm({ initial = {}, onSubmit, loading, submitLabel = 'Submit', fixedResourceId, currentUserId }) {
+  const userRole = initial.userRole || null;
+  const rolePolicy = useMemo(() => {
+    const policies = {
+      UNDERGRADUATE_STUDENT: {
+        maxHours: 2,
+        horizonDays: 14,
+        activeLimit: 3,
+        allowedTypes: ['ROOM', 'EQUIPMENT'],
+        priority: 'STANDARD',
+      },
+      INSTRUCTOR: {
+        maxHours: 6,
+        horizonDays: 30,
+        activeLimit: 10,
+        allowedTypes: ['ROOM', 'HALL', 'LAB', 'EQUIPMENT'],
+        priority: 'MEDIUM',
+      },
+      LECTURER: {
+        maxHours: 8,
+        horizonDays: 45,
+        activeLimit: 15,
+        allowedTypes: ['ROOM', 'HALL', 'LAB', 'EQUIPMENT'],
+        priority: 'HIGH',
+      },
+      MANAGER: {
+        maxHours: 12,
+        horizonDays: 90,
+        activeLimit: null,
+        allowedTypes: ['ROOM', 'HALL', 'LAB', 'EQUIPMENT'],
+        priority: 'OVERRIDE',
+      },
+      TECHNICIAN: {
+        maxHours: 0,
+        horizonDays: 0,
+        activeLimit: 0,
+        allowedTypes: [],
+        priority: 'N/A',
+      },
+    };
+    return userRole ? policies[userRole] ?? null : null;
+  }, [userRole]);
   const navigate = useNavigate();
   // When editing (fixedResourceId set), skip resource selection and start at date/time.
   const totalSteps = fixedResourceId ? 2 : 3;
@@ -198,15 +240,16 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
 
   const filteredResources = useMemo(() => {
     return resources.filter((r) => {
+      const roleAllowed = !rolePolicy || rolePolicy.allowedTypes.includes(r.type);
       const matchType = typeFilter === 'ALL' || r.type === typeFilter;
       const q = searchQuery.toLowerCase();
       const matchSearch =
         !q ||
         r.name.toLowerCase().includes(q) ||
         (r.location ?? '').toLowerCase().includes(q);
-      return matchType && matchSearch;
+      return roleAllowed && matchType && matchSearch;
     });
-  }, [resources, typeFilter, searchQuery]);
+  }, [resources, typeFilter, searchQuery, rolePolicy]);
 
   // ── Schedule & slots ──────────────────────────────────────────────────────────
   const [allBookings, setAllBookings] = useState([]);
@@ -314,6 +357,12 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
       if (!form.endTime) e.endTime = 'End time is required';
       if (form.startTime && form.endTime && form.startTime >= form.endTime)
         e.endTime = 'End time must be after start time';
+      if (rolePolicy && form.startTime && form.endTime) {
+        const durationHours = (timeToMinutes(form.endTime) - timeToMinutes(form.startTime)) / 60;
+        if (durationHours > rolePolicy.maxHours) {
+          e.endTime = `Your role allows up to ${rolePolicy.maxHours} hours per booking.`;
+        }
+      }
       // Past-time guard: if the selected date is today, start time must be in the future
       if (form.date && form.startTime) {
         const nowDate = new Date().toISOString().split('T')[0];
@@ -322,6 +371,14 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
           e.startTime = 'Start time must be in the future for today.';
         if (form.date < nowDate)
           e.date = 'Cannot book a date in the past.';
+        if (rolePolicy && form.date > nowDate) {
+          const selected = new Date(form.date + 'T00:00:00');
+          const todayDate = new Date(nowDate + 'T00:00:00');
+          const diffDays = Math.floor((selected - todayDate) / (1000 * 60 * 60 * 24));
+          if (diffDays > rolePolicy.horizonDays) {
+            e.date = `Your role can only book up to ${rolePolicy.horizonDays} days ahead.`;
+          }
+        }
       }
       if (slotBooked)
         e.slot = `⛔ This conflicts with an existing reservation from ${slotBooked.startTime} to ${slotBooked.endTime}. Please choose a different time.`;
@@ -422,6 +479,22 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
     // Task 5 & Date Picker Fix: flex-col so the sticky action bar stays pinned at the bottom, h-full and relative for proper layout boundaries
     <div className="flex flex-col h-full relative">
       <StepIndicator steps={stepLabels} currentStep={uiStep} />
+      {userRole && rolePolicy && (
+        <div className="mb-5 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50 p-4">
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">
+              Role: {getRoleLabel(userRole)}
+            </p>
+            <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+              Priority {rolePolicy.priority}
+            </span>
+          </div>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Allowed: {rolePolicy.allowedTypes.join(', ') || 'No direct booking'} | Max duration: {rolePolicy.maxHours}h | Horizon: {rolePolicy.horizonDays} days
+            {rolePolicy.activeLimit ? ` | Active future bookings: ${rolePolicy.activeLimit}` : ''}
+          </p>
+        </div>
+      )}
 
       <AnimatePresence mode="wait">
         {/* ── Step 1: Resource Selection ── */}

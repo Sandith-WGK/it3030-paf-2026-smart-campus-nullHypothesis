@@ -27,7 +27,7 @@ const Profile = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    role: 'USER',
+    role: 'UNDERGRADUATE_STUDENT',
     password: '',
     confirmPassword: '',
     picture: ''
@@ -46,7 +46,7 @@ const Profile = () => {
         ...prev,
         name: user.name || '',
         email: user.email || '',
-        role: user.role || 'USER',
+        role: user.role || 'UNDERGRADUATE_STUDENT',
         picture: user.picture || ''
       }));
     }

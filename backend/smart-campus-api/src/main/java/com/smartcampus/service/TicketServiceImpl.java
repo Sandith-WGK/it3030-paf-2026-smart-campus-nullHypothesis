@@ -56,7 +56,7 @@ public class TicketServiceImpl implements TicketService {
         );
 
         // Notify all admins about the new ticket
-        List<User> admins = userRepository.findByRole(Role.ADMIN);
+        List<User> admins = userRepository.findByRole(Role.MANAGER);
         User reporter = userRepository.findById(reporterId).orElse(null);
         String reporterName = (reporter != null) ? reporter.getName() : "A user";
         

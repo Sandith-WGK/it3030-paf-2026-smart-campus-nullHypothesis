@@ -204,6 +204,33 @@ npm run preview
 
 ---
 
+## Role model and migration
+
+Current single-role model:
+
+- `UNDERGRADUATE_STUDENT`
+- `INSTRUCTOR`
+- `LECTURER`
+- `MANAGER`
+- `TECHNICIAN`
+
+Legacy role mapping:
+
+- `USER -> UNDERGRADUATE_STUDENT`
+- `ADMIN -> MANAGER`
+- `TECHNICIAN -> TECHNICIAN`
+
+Run one-time MongoDB migration before first deployment of this role model:
+
+```javascript
+// from project root, inside mongosh
+load("backend/smart-campus-api/scripts/role-migration.js")
+```
+
+After migration, users with manager-only features (admin dashboard, approvals) must have role `MANAGER`.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Things to check |

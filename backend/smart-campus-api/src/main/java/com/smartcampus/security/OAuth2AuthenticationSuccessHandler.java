@@ -1,6 +1,5 @@
 package com.smartcampus.security;
 
-import com.smartcampus.model.Role;
 import com.smartcampus.model.User;
 import com.smartcampus.repository.UserRepository;
 import com.smartcampus.service.EmailService;
@@ -49,7 +48,7 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
             return;
         }
 
-        if (user.getRole() == Role.ADMIN || user.getRole() == Role.TECHNICIAN) {
+        if (RoleAccess.requiresTwoFactor(user.getRole())) {
             String otp = String.valueOf((int) ((Math.random() * 900000) + 100000));
             user.setTwoFactorCode(otp);
             user.setTwoFactorCodeExpiresAt(Instant.now().plus(5, ChronoUnit.MINUTES));

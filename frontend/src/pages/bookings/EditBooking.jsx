@@ -5,8 +5,17 @@ import Layout from '../../components/layout/Layout';
 import BookingForm from '../../components/booking/BookingForm';
 import Toast from '../../components/common/Toast';
 import bookingService from '../../services/api/bookingService';
+import { useAuth } from '../../context/AuthContext';
+
+const BOOKING_ERROR_MESSAGES = {
+  RESOURCE_TYPE_NOT_ALLOWED_FOR_ROLE: 'This resource type is not available for your role.',
+  BOOKING_DURATION_EXCEEDS_ROLE_LIMIT: 'Selected duration exceeds your role limit.',
+  BOOKING_HORIZON_EXCEEDED: 'Selected date is beyond your booking horizon.',
+  ACTIVE_BOOKING_LIMIT_EXCEEDED: 'You have reached your active future booking limit.',
+};
 
 export default function EditBooking() {
+  const { user } = useAuth();
   const { id } = useParams();
   const navigate = useNavigate();
   const [booking, setBooking] = useState(null);
@@ -29,6 +38,11 @@ export default function EditBooking() {
       .finally(() => setLoadingBooking(false));
   }, [id, navigate]);
 
+  const mapBookingError = (err) => {
+    const raw = err.response?.data?.message || err.response?.data?.error || '';
+    return BOOKING_ERROR_MESSAGES[raw] || raw || 'Failed to update booking';
+  };
+
   const handleSubmit = async (payload) => {
     setSubmitting(true);
     try {
@@ -36,11 +50,7 @@ export default function EditBooking() {
       setToast({ type: 'success', message: 'Booking updated successfully!' });
       setTimeout(() => navigate(`/bookings/${id}`), 800);
     } catch (err) {
-      const msg =
-        err.response?.data?.message ??
-        (err.response?.data?.data
-          ? Object.values(err.response.data.data).join(', ')
-          : 'Failed to update booking');
+      const msg = mapBookingError(err);
       setToast({ type: 'error', message: msg });
     } finally {
       setSubmitting(false);
@@ -67,6 +77,7 @@ export default function EditBooking() {
     endTime: booking.endTime,
     purpose: booking.purpose,
     expectedAttendees: booking.expectedAttendees ?? '',
+    userRole: user?.role ?? '',
   };
 
   return (

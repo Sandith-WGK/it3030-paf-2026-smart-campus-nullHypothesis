@@ -67,7 +67,7 @@ public class ResourceController {
      * Admin only
      */
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ApiResponse<Resource>> createResource(@Valid @RequestBody Resource resource) {
         Resource createdResource = resourceService.createResource(resource);
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -80,7 +80,7 @@ public class ResourceController {
      * Admin only
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ApiResponse<Resource>> updateResource(
             @PathVariable String id,
             @Valid @RequestBody Resource resource) {
@@ -94,7 +94,7 @@ public class ResourceController {
      * Admin only
      */
     @PatchMapping("/{id}/status")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ApiResponse<Resource>> updateResourceStatus(
             @PathVariable String id,
             @RequestParam ResourceStatus status) {
@@ -108,7 +108,7 @@ public class ResourceController {
      * Admin only
      */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<Void> deleteResource(@PathVariable String id) {
         resourceService.deleteResource(id);
         return ResponseEntity.noContent().build();

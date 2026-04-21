@@ -68,7 +68,7 @@ public class CommentServiceImpl implements CommentService {
                     "TICKET"
                 );
             } else {
-                List<User> admins = userRepository.findByRole(Role.ADMIN);
+                List<User> admins = userRepository.findByRole(Role.MANAGER);
                 for (User admin : admins) {
                     notificationService.sendNotification(
                         admin.getId(),

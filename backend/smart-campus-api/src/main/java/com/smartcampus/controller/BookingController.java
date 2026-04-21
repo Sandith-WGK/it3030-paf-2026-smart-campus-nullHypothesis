@@ -97,7 +97,7 @@ public class BookingController {
     // Admin-only: get all bookings with optional filters.
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ApiResponse<List<BookingResponse>>> getAllBookings(
             @RequestParam(required = false) BookingStatus status,
             @RequestParam(required = false) String resourceId,
@@ -121,7 +121,7 @@ public class BookingController {
             @AuthenticationPrincipal UserPrincipal principal) {
 
         boolean isAdmin = principal.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+                .anyMatch(a -> a.getAuthority().equals("ROLE_MANAGER"));
 
         BookingResponse response = bookingService.getBookingById(id, principal.getId(), isAdmin);
         return ResponseEntity.ok()
@@ -146,7 +146,7 @@ public class BookingController {
     // Admin approves a PENDING booking (triggers BOOKING_APPROVED notification).
 
     @PatchMapping("/{id}/approve")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ApiResponse<BookingResponse>> approveBooking(@PathVariable String id) {
         BookingResponse response = bookingService.approveBooking(id);
         return ResponseEntity.ok(ApiResponse.success("Booking approved successfully", response));
@@ -156,7 +156,7 @@ public class BookingController {
     // Admin rejects a PENDING booking with a required reason (triggers BOOKING_REJECTED notification).
 
     @PatchMapping("/{id}/reject")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ApiResponse<BookingResponse>> rejectBooking(
             @PathVariable String id,
             @Valid @RequestBody BookingRejectRequest request) {
@@ -174,7 +174,7 @@ public class BookingController {
             @AuthenticationPrincipal UserPrincipal principal) {
 
         boolean isAdmin = principal.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+                .anyMatch(a -> a.getAuthority().equals("ROLE_MANAGER"));
 
         BookingResponse response = bookingService.cancelBooking(id, principal.getId(), isAdmin);
         return ResponseEntity.ok(ApiResponse.success("Booking cancelled successfully", response));
@@ -190,7 +190,7 @@ public class BookingController {
             @AuthenticationPrincipal UserPrincipal principal) {
 
         boolean isAdmin = principal.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+                .anyMatch(a -> a.getAuthority().equals("ROLE_MANAGER"));
 
         bookingService.deleteBooking(id, principal.getId(), isAdmin);
         return ResponseEntity.noContent().build();
@@ -200,7 +200,7 @@ public class BookingController {
     // Admin-only: returns aggregated booking analytics used by the dashboard panel.
 
     @GetMapping("/analytics")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ApiResponse<BookingAnalyticsResponse>> getBookingAnalytics() {
         BookingAnalyticsResponse analytics = bookingService.getBookingAnalytics();
         return ResponseEntity.ok(ApiResponse.success("Analytics retrieved successfully", analytics));

@@ -14,6 +14,7 @@ import {
   Eye, EyeOff, Shield, KeyRound, Sparkles, Users
 } from 'lucide-react';
 import Layout from '../components/layout/Layout';
+import { getRoleLabel } from '../utils/auth';
 
 const COLORS = ['#8b5cf6', '#f59e0b', '#3b82f6', '#10b981'];
 
@@ -32,7 +33,7 @@ export default function AdminDashboard() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [newUserData, setNewUserData] = useState({ email: '', name: '', role: 'USER', password: '', confirmPassword: '' });
+  const [newUserData, setNewUserData] = useState({ email: '', name: '', role: 'UNDERGRADUATE_STUDENT', password: '', confirmPassword: '' });
   const [showCreatePassword, setShowCreatePassword] = useState(false);
   const [showCreateConfirmPassword, setShowCreateConfirmPassword] = useState(false);
   const editingProvider = (editingUser?.provider || '').toUpperCase();
@@ -101,7 +102,7 @@ export default function AdminDashboard() {
       password: newUserData.password || null
     });
     setIsCreateModalOpen(false);
-    setNewUserData({ email: '', name: '', role: 'USER', password: '', confirmPassword: '' });
+    setNewUserData({ email: '', name: '', role: 'UNDERGRADUATE_STUDENT', password: '', confirmPassword: '' });
     setShowCreatePassword(false);
     setShowCreateConfirmPassword(false);
     fetchUsers();
@@ -343,10 +344,10 @@ export default function AdminDashboard() {
 
   const generateAIAssessment = () => {
     if (!users || !Array.isArray(users) || users.length === 0) return "Gathering data...";
-    const admins = users.filter(u => u && u.role === 'ADMIN').length;
+    const managers = users.filter(u => u && u.role === 'MANAGER').length;
     const techs = users.filter(u => u && u.role === 'TECHNICIAN').length;
     
-    if (admins > users.length / 2) return "⚠️ High number of Admins. Consider reviewing access controls.";
+    if (managers > users.length / 2) return "⚠️ High number of Managers. Consider reviewing access controls.";
     if (techs === 0) return "💡 You have no Technicians. Operations may stall.";
     return "✅ System health is optimal. Role distribution looks balanced.";
   }
@@ -450,8 +451,10 @@ export default function AdminDashboard() {
                 className="py-2 px-4 rounded-xl border border-zinc-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
               >
                 <option value="ALL">All Roles</option>
-                <option value="USER">User</option>
-                <option value="ADMIN">Admin</option>
+                <option value="UNDERGRADUATE_STUDENT">Undergraduate Student</option>
+                <option value="INSTRUCTOR">Instructor</option>
+                <option value="LECTURER">Lecturer</option>
+                <option value="MANAGER">Manager</option>
                 <option value="TECHNICIAN">Technician</option>
               </select>
             </div>
@@ -529,11 +532,13 @@ export default function AdminDashboard() {
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                          user.role === 'ADMIN' ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400' :
+                          user.role === 'MANAGER' ? 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400' :
                           user.role === 'TECHNICIAN' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' :
+                          user.role === 'LECTURER' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' :
+                          user.role === 'INSTRUCTOR' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
                           'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
                         }`}>
-                          {user.role}
+                          {getRoleLabel(user.role)}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -600,9 +605,11 @@ export default function AdminDashboard() {
                 <div>
                   <label className="block text-sm font-medium mb-1">Assign Role</label>
                   <select value={newUserData.role} onChange={e => setNewUserData({...newUserData, role: e.target.value})} className="w-full p-2.5 rounded-xl border border-zinc-200 bg-white focus:ring-2 focus:ring-violet-500 outline-none dark:bg-zinc-950 dark:border-zinc-700">
-                    <option value="USER">User</option>
+                    <option value="UNDERGRADUATE_STUDENT">Undergraduate Student</option>
+                    <option value="INSTRUCTOR">Instructor</option>
+                    <option value="LECTURER">Lecturer</option>
+                    <option value="MANAGER">Manager</option>
                     <option value="TECHNICIAN">Technician</option>
-                    <option value="ADMIN">Admin</option>
                   </select>
                 </div>
                 <div>
@@ -729,13 +736,15 @@ export default function AdminDashboard() {
                   <div className="col-span-1">
                     <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">Role</label>
                     <select 
-                      value={editingUser?.role || 'USER'} 
+                      value={editingUser?.role || 'UNDERGRADUATE_STUDENT'} 
                       onChange={e => setEditingUser({...editingUser, role: e.target.value})} 
                       className="w-full p-3 rounded-xl border border-zinc-200 bg-zinc-50 focus:bg-white focus:ring-2 focus:ring-violet-500 outline-none dark:bg-zinc-950 dark:border-zinc-700 transition-all text-sm"
                     >
-                      <option value="USER">User</option>
+                      <option value="UNDERGRADUATE_STUDENT">Undergraduate Student</option>
+                      <option value="INSTRUCTOR">Instructor</option>
+                      <option value="LECTURER">Lecturer</option>
+                      <option value="MANAGER">Manager</option>
                       <option value="TECHNICIAN">Technician</option>
-                      <option value="ADMIN">Admin</option>
                     </select>
                   </div>
 
@@ -769,7 +778,7 @@ export default function AdminDashboard() {
                     )}
                   </div>
                   <div className="col-span-1">
-                    <label className="flex items-center gap-1 block text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
+                    <label className="flex items-center gap-1 text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">
                       <Lock size={12} /> Confirm Password
                     </label>
                     <div className="relative">

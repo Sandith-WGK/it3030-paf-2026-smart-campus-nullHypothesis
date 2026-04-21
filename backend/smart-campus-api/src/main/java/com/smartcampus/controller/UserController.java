@@ -28,13 +28,13 @@ public class UserController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<List<User>> getAllUsers() {
         return ResponseEntity.ok(userService.getAllUsers());
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or #id == principal.userId")
+    @PreAuthorize("hasRole('MANAGER') or #id == principal.userId")
     public ResponseEntity<User> getUserById(@PathVariable String id) {
         return ResponseEntity.ok(userService.getUserById(id));
     }
@@ -54,10 +54,11 @@ public class UserController {
     private com.smartcampus.security.JwtProvider jwtProvider;
     
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or #id == principal.userId")
+    @PreAuthorize("hasRole('MANAGER') or #id == principal.userId")
     public ResponseEntity<AuthResponse> updateUser(@PathVariable String id, @RequestBody UpdateUserRequest request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        boolean isAdmin = auth != null && auth.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        boolean isAdmin = auth != null
+                && auth.getAuthorities().stream().anyMatch(a -> "ROLE_MANAGER".equals(a.getAuthority()));
         String actorUserId = (auth != null && auth.getPrincipal() instanceof UserPrincipal up) ? up.getUserId() : null;
         boolean isSelfUpdate = actorUserId != null && actorUserId.equals(id);
         Role effectiveRole = isAdmin ? request.role() : null;
@@ -76,20 +77,20 @@ public class UserController {
     }
 
     @PutMapping("/{id}/preferences")
-    @PreAuthorize("hasRole('ADMIN') or #id == principal.userId or #id == principal.email")
+    @PreAuthorize("hasRole('MANAGER') or #id == principal.userId or #id == principal.email")
     public ResponseEntity<User> updatePreferences(@PathVariable String id, @RequestBody com.smartcampus.dto.UserPreferenceUpdateRequest request) {
         log.info("AUDIT [UserController]: Received preferences PUT for ID: {}. Payload: {}", id, request);
         return ResponseEntity.ok(userService.updateUserPreferences(id, request));
     }
 
     @GetMapping("/{id}/activity")
-    @PreAuthorize("hasRole('ADMIN') or #id == principal.userId")
+    @PreAuthorize("hasRole('MANAGER') or #id == principal.userId")
     public ResponseEntity<List<UserActivity>> getUserActivity(@PathVariable String id) {
         return ResponseEntity.ok(userService.getUserActivity(id));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<Void> deleteUser(@PathVariable String id) {
         userService.deleteUser(id);
         return ResponseEntity.noContent().build();

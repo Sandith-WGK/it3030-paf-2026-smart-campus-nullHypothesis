@@ -24,7 +24,19 @@ export function getUserRole() {
 }
 
 export function isAdmin() {
-  return getUserRole() === 'ADMIN';
+  return getUserRole() === 'MANAGER';
+}
+
+export const ROLE_LABELS = {
+  UNDERGRADUATE_STUDENT: 'Undergraduate Student',
+  INSTRUCTOR: 'Instructor',
+  LECTURER: 'Lecturer',
+  MANAGER: 'Manager',
+  TECHNICIAN: 'Technician',
+};
+
+export function getRoleLabel(role) {
+  return ROLE_LABELS[role] || role || 'Unknown';
 }
 
 export function isAuthenticated() {

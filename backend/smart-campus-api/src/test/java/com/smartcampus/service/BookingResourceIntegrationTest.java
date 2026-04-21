@@ -59,6 +59,7 @@ class BookingResourceIntegrationTest {
                 .id(USER_ID)
                 .name("Integration Tester")
                 .email("integtest@sliit.lk")
+                .role(Role.LECTURER)
                 .build();
     }
 
@@ -141,7 +142,7 @@ class BookingResourceIntegrationTest {
                 return b;
             });
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser));
-            when(userRepository.findByRole(Role.ADMIN)).thenReturn(List.of());
+            when(userRepository.findByRole(Role.MANAGER)).thenReturn(List.of());
 
             BookingRequest request = BookingRequest.builder()
                     .resourceId("lab-101")
@@ -257,7 +258,7 @@ class BookingResourceIntegrationTest {
                 return b;
             });
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser));
-            when(userRepository.findByRole(Role.ADMIN)).thenReturn(List.of());
+            when(userRepository.findByRole(Role.MANAGER)).thenReturn(List.of());
 
             BookingRequest request = BookingRequest.builder()
                     .resourceId("equip-P1")
@@ -435,7 +436,7 @@ class BookingResourceIntegrationTest {
                 return b;
             });
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser));
-            when(userRepository.findByRole(Role.ADMIN)).thenReturn(List.of());
+            when(userRepository.findByRole(Role.MANAGER)).thenReturn(List.of());
 
             BookingRequest request = BookingRequest.builder()
                     .resourceId("res-enriched")

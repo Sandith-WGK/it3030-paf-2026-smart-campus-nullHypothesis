@@ -53,7 +53,7 @@ public class UserService {
         User.UserBuilder builder = User.builder()
                 .email(email)
                 .name(name)
-                .role(role != null ? role : Role.USER)
+                .role(role != null ? role : Role.UNDERGRADUATE_STUDENT)
                 .createdAt(Instant.now());
 
         if (password != null && !password.isBlank()) {
@@ -151,14 +151,14 @@ public class UserService {
                     "USER"
                 );
 
-                // If promoted to Admin, notify other admins for audit
-                if (role == Role.ADMIN) {
-                    List<User> admins = userRepository.findByRole(Role.ADMIN);
+                // If promoted to Manager, notify other managers for audit
+                if (role == Role.MANAGER) {
+                    List<User> admins = userRepository.findByRole(Role.MANAGER);
                     for (User admin : admins) {
                         if (!admin.getId().equals(id)) {
                             notificationService.sendNotification(
                                 admin.getId(),
-                                String.format("Audit: %s has been promoted to ADMINISTRATOR role.", user.getName()),
+                                String.format("Audit: %s has been promoted to MANAGER role.", user.getName()),
                                 NotifType.SECURITY_UPDATE,
                                 Severity.ALERT,
                                 id,
@@ -175,7 +175,7 @@ public class UserService {
 
                 if (requireEmailReverification) {
                     // SELF UPDATE -> Notify Admins
-                    List<User> admins = userRepository.findByRole(Role.ADMIN);
+                    List<User> admins = userRepository.findByRole(Role.MANAGER);
                     for (User admin : admins) {
                         notificationService.sendNotification(
                             admin.getId(), 

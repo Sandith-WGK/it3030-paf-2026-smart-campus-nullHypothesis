@@ -13,6 +13,7 @@ import com.smartcampus.model.Role;
 import com.smartcampus.model.User;
 import com.smartcampus.repository.UserRepository;
 import com.smartcampus.security.JwtProvider;
+import com.smartcampus.security.RoleAccess;
 import com.smartcampus.security.UserPrincipal;
 import com.smartcampus.service.EmailService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,14 +71,14 @@ public class AuthController {
         String role = userPrincipal.getAuthorities().stream()
                 .findFirst()
                 .map(a -> a.getAuthority().replace("ROLE_", ""))
-                .orElse("USER");
+                .orElse(Role.UNDERGRADUATE_STUDENT.name());
 
         User user = userRepository.findById(userPrincipal.getUserId()).orElse(null);
         if (user == null) {
             return ResponseEntity.badRequest().body("Error: User not found.");
         }
 
-        if ("ADMIN".equals(role) || "TECHNICIAN".equals(role)) {
+        if (RoleAccess.requiresTwoFactor(user.getRole())) {
             String otp = String.valueOf((int) ((Math.random() * 900000) + 100000));
             user.setTwoFactorCode(otp);
             user.setTwoFactorCodeExpiresAt(Instant.now().plus(5, ChronoUnit.MINUTES));
@@ -113,7 +114,7 @@ public class AuthController {
             return ResponseEntity.badRequest().body("Error: User not found.");
         }
 
-        if (user.getRole() != Role.ADMIN && user.getRole() != Role.TECHNICIAN) {
+        if (!RoleAccess.requiresTwoFactor(user.getRole())) {
             return ResponseEntity.badRequest().body("Error: 2FA is not required for this account.");
         }
 
@@ -150,7 +151,7 @@ public class AuthController {
             return ResponseEntity.badRequest().body("Error: User not found.");
         }
 
-        if (user.getRole() != Role.ADMIN && user.getRole() != Role.TECHNICIAN) {
+        if (!RoleAccess.requiresTwoFactor(user.getRole())) {
             return ResponseEntity.badRequest().body("Error: 2FA is not required for this account.");
         }
 
@@ -189,7 +190,7 @@ public class AuthController {
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(signupRequest.getPassword()));
         user.setProvider("LOCAL");
-        user.setRole(Role.USER);
+        user.setRole(Role.UNDERGRADUATE_STUDENT);
         user.setEnabled(false);
         user.setVerificationCode(verificationCode);
 

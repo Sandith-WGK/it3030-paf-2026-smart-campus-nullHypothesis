@@ -34,7 +34,7 @@ public class ImportExportController {
      * Admin only
      */
     @GetMapping("/export/resources")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<byte[]> exportResources() {
         ByteArrayInputStream inputStream = importExportService.exportResourcesToCSV();
         
@@ -52,7 +52,7 @@ public class ImportExportController {
      * Admin only
      */
     @PostMapping("/import/resources")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('MANAGER')")
     public ResponseEntity<ApiResponse<String>> importResources(
             @RequestParam("file") MultipartFile file) {
         

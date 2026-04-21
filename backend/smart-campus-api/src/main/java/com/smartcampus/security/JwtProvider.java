@@ -34,11 +34,11 @@ public class JwtProvider {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationInMs);
 
-        // Extract role string from authorities (e.g. "ROLE_ADMIN" -> "ADMIN")
+        // Extract role string from authorities (e.g. "ROLE_MANAGER" -> "MANAGER")
         String role = userPrincipal.getAuthorities().stream()
                 .findFirst()
                 .map(a -> a.getAuthority().replace("ROLE_", ""))
-                .orElse("USER");
+                .orElse("UNDERGRADUATE_STUDENT");
 
         String pictureUrl = userPrincipal.getPicture();
         // Prevent huge base64 profiles from blowing up the JWT and crashing Tomcat Headers

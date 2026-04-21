@@ -7,6 +7,13 @@ import Toast from '../../components/common/Toast';
 import bookingService from '../../services/api/bookingService';
 import { useAuth } from '../../context/AuthContext';
 
+const BOOKING_ERROR_MESSAGES = {
+  RESOURCE_TYPE_NOT_ALLOWED_FOR_ROLE: 'This resource type is not available for your role.',
+  BOOKING_DURATION_EXCEEDS_ROLE_LIMIT: 'Selected duration exceeds your role limit.',
+  BOOKING_HORIZON_EXCEEDED: 'Selected date is beyond your booking horizon.',
+  ACTIVE_BOOKING_LIMIT_EXCEEDED: 'You have reached your active future booking limit.',
+};
+
 export default function NewBooking() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -32,6 +39,11 @@ export default function NewBooking() {
       });
   }, [rebookId]);
 
+  const mapBookingError = (err) => {
+    const raw = err.response?.data?.message || err.response?.data?.error || '';
+    return BOOKING_ERROR_MESSAGES[raw] || raw || 'Failed to create booking';
+  };
+
   const handleSubmit = async (payload) => {
     setLoading(true);
     try {
@@ -40,11 +52,7 @@ export default function NewBooking() {
       setToast({ type: 'success', message: 'Booking created successfully!' });
       setTimeout(() => navigate(newId ? `/bookings/${newId}` : '/bookings'), 800);
     } catch (err) {
-      const msg =
-        err.response?.data?.message ??
-        (err.response?.data?.data
-          ? Object.values(err.response.data.data).join(', ')
-          : 'Failed to create booking');
+      const msg = mapBookingError(err);
       setToast({ type: 'error', message: msg });
     } finally {
       setLoading(false);
@@ -56,8 +64,9 @@ export default function NewBooking() {
         resourceId: rebookSource.resourceId,
         purpose: rebookSource.purpose,
         expectedAttendees: rebookSource.expectedAttendees ?? '',
+        userRole: user?.role ?? '',
       }
-    : {};
+    : { userRole: user?.role ?? '' };
 
   return (
     <Layout title="New Booking">
