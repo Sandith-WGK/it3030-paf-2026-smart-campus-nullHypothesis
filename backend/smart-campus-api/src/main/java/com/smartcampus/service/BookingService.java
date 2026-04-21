@@ -482,6 +482,34 @@ public class BookingService {
         return result;
     }
 
+    // ── QR Code Check-In Verification ──────────────────────────────────────
+
+    /**
+     * Verifies a booking for QR code check-in.
+     * Validates that the booking exists, is APPROVED, and its date is today.
+     * Returns full booking details so the person scanning can verify identity.
+     */
+    public BookingResponse verifyBookingForCheckIn(String bookingId) {
+        Booking booking = findBookingOrThrow(bookingId);
+
+        if (booking.getStatus() != BookingStatus.APPROVED) {
+            throw new InvalidBookingStateException(
+                    String.format("This booking is not valid for check-in (status: %s). Only APPROVED bookings can be verified.",
+                            booking.getStatus()));
+        }
+
+        LocalDate today = LocalDate.now();
+        if (!booking.getDate().equals(today)) {
+            throw new InvalidBookingStateException(
+                    String.format("This booking is for %s, but today is %s. Check-in is only allowed on the booking date.",
+                            booking.getDate(), today));
+        }
+
+        Resource resource = resourceRepository.findById(booking.getResourceId()).orElse(null);
+        User user = userRepository.findById(booking.getUserId()).orElse(null);
+        return BookingResponse.from(booking, resource, user);
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private Booking findBookingOrThrow(String bookingId) {

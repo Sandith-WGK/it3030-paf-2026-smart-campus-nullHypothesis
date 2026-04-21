@@ -205,4 +205,15 @@ public class BookingController {
         BookingAnalyticsResponse analytics = bookingService.getBookingAnalytics();
         return ResponseEntity.ok(ApiResponse.success("Analytics retrieved successfully", analytics));
     }
+
+    // ── GET /api/v1/bookings/{id}/verify ─────────────────────────────────────
+    // QR code check-in verification endpoint.
+    // Validates that the booking exists, is APPROVED, and matches today's date.
+    // Returns resource details, booker name, and time slot for physical verification.
+
+    @GetMapping("/{id}/verify")
+    public ResponseEntity<ApiResponse<BookingResponse>> verifyBooking(@PathVariable String id) {
+        BookingResponse response = bookingService.verifyBookingForCheckIn(id);
+        return ResponseEntity.ok(ApiResponse.success("Booking verified successfully", response));
+    }
 }
