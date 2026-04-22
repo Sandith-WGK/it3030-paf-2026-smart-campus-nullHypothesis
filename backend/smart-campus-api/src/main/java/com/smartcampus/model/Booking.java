@@ -1,6 +1,5 @@
 package com.smartcampus.model;
 
-import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -10,6 +9,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
@@ -17,6 +18,15 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 
 @Document(collection = "bookings")
+// C1 Race-condition guard: only one booking may occupy an exact
+// (resourceId, date, startTime, endTime) slot. MongoDB enforces this atomically.
+@CompoundIndexes({
+    @CompoundIndex(
+        name = "unique_slot",
+        def  = "{'resourceId': 1, 'date': 1, 'startTime': 1, 'endTime': 1}",
+        unique = true
+    )
+})
 @Data
 @Builder
 @NoArgsConstructor
@@ -33,7 +43,6 @@ public class Booking {
     private String userId;             // ref to users collection
 
     @NotNull(message = "Booking date is required")
-    @FutureOrPresent(message = "Booking date must be today or in the future")
     private LocalDate date;
 
     @NotNull(message = "Start time is required")

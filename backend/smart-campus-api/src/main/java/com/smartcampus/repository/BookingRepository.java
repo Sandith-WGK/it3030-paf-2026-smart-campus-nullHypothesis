@@ -46,22 +46,22 @@ public interface BookingRepository extends MongoRepository<Booking, String> {
             LocalTime newEnd
     );
 
-    // ── Aggregate capacity check ─────────────────────────────────────────────
-    // Find all APPROVED or PENDING bookings for the same resource/date that
-    // overlap the requested slot — used to sum expected attendees.
+    // Find any PENDING booking for the same resource on the same date
+    // where the time ranges overlap (used for auto-rejection when arbitrating)
     @Query("{ " +
            "  'resourceId': ?0, " +
            "  'date':       ?1, " +
-           "  'status':     { $in: ['APPROVED', 'PENDING'] }, " +
+           "  'status':     'PENDING', " +
            "  'startTime':  { $lt: ?3 }, " +
            "  'endTime':    { $gt: ?2 }  " +
            "}")
-    List<Booking> findOverlappingActiveBookings(
+    List<Booking> findOverlappingPendingBookings(
             String resourceId,
             LocalDate date,
             LocalTime newStart,
             LocalTime newEnd
     );
+
 
     // ── Duplicate booking check ──────────────────────────────────────────────
     // Find any APPROVED or PENDING booking from the SAME user for the same

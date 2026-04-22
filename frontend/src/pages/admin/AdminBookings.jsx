@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import {
   CalendarDays,
@@ -35,6 +35,7 @@ function sortBookings(list) {
 
 export default function AdminBookings() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({});
@@ -117,12 +118,25 @@ export default function AdminBookings() {
     setBulkLoading(true);
     const ids = [...selected];
     try {
-      await Promise.all(ids.map((id) => bookingService.approveBooking(id)));
-      setToast({ type: 'success', message: `${ids.length} booking${ids.length > 1 ? 's' : ''} approved` });
+      const results = await Promise.allSettled(ids.map((id) => bookingService.approveBooking(id)));
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+      const failed    = results.filter((r) => r.status === 'rejected');
+
+      if (failed.length === 0) {
+        setToast({ type: 'success', message: `${succeeded} booking${succeeded > 1 ? 's' : ''} approved` });
+      } else if (succeeded > 0) {
+        const reasons = failed.map((r) => r.reason?.response?.data?.message).filter(Boolean).join('; ');
+        setToast({
+          type: 'error',
+          message: `${succeeded} approved, ${failed.length} failed${reasons ? ': ' + reasons : ' (conflicts or errors)'}`,
+        });
+      } else {
+        const reasons = failed.map((r) => r.reason?.response?.data?.message).filter(Boolean).join('; ');
+        setToast({ type: 'error', message: `All ${failed.length} approvals failed${reasons ? ': ' + reasons : ''}` });
+      }
+
       setBulkApproveOpen(false);
       animateAndReload(ids);
-    } catch {
-      setToast({ type: 'error', message: 'Some bookings could not be approved' });
     } finally {
       setBulkLoading(false);
     }
@@ -377,7 +391,7 @@ export default function AdminBookings() {
                       </>
                     )}
                     <button
-                      onClick={() => navigate(`/bookings/${b.id}`)}
+                      onClick={() => navigate(`/bookings/${b.id}`, { state: { from: location.pathname + location.search } })}
                       className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
                       title="View details"
                     >

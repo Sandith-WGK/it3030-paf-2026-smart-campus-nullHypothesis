@@ -51,8 +51,10 @@ function generateTimeOptions(start = '07:00', end = '22:00') {
   const opts = [];
   let cur = timeToMinutes(start);
   const endMin = timeToMinutes(end);
-  // Use <= so the resource's exact closing time is included as a selectable option (Task 1)
-  while (cur <= endMin) {
+  // Use < (not <=) so the resource's closing time is NOT a selectable start time —
+  // choosing it would leave the end-time dropdown empty. The closing time remains
+  // selectable as an end time (endTimeOptions already filters t > startTime).
+  while (cur < endMin) {
     opts.push(minutesToTime(cur));
     cur += 30;
   }
@@ -258,6 +260,20 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
     );
   }, [approvedBookings, form.startTime, form.endTime]);
 
+  // Check for any PENDING bookings in the same slot (ignoring the user's own, which are caught by userDuplicate)
+  const slotHasPending = useMemo(() => {
+    if (!form.startTime || !form.endTime) return null;
+    return (
+      allBookings.find(
+        (b) =>
+          b.status === 'PENDING' &&
+          !(currentUserId && (b.userId === currentUserId || b.userId === String(currentUserId))) &&
+          String(b.startTime).substring(0, 5) < form.endTime &&
+          String(b.endTime).substring(0, 5) > form.startTime,
+      ) ?? null
+    );
+  }, [allBookings, currentUserId, form.startTime, form.endTime]);
+
   // Task 3: Suggest the next available 1-hour and 2-hour blocks
   const suggestedSlots = useMemo(() => {
     if (!activeResource || !form.date) return [];
@@ -316,8 +332,14 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
         e.endTime = 'End time must be after start time';
       // Past-time guard: if the selected date is today, start time must be in the future
       if (form.date && form.startTime) {
-        const nowDate = new Date().toISOString().split('T')[0];
-        const nowTime = new Date().toTimeString().slice(0, 5);
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const nowDate = `${year}-${month}-${day}`;
+        const hours = String(now.getHours()).padStart(2, '0');
+        const mins = String(now.getMinutes()).padStart(2, '0');
+        const nowTime = `${hours}:${mins}`;
         if (form.date === nowDate && form.startTime <= nowTime)
           e.startTime = 'Start time must be in the future for today.';
         if (form.date < nowDate)
@@ -362,10 +384,18 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
 
   // Track in-flight submission to prevent double-tap
   const [submitting, setSubmitting] = useState(false);
+  const [pendingWarningOpen, setPendingWarningOpen] = useState(false);
+  const [pendingWarningAcknowledged, setPendingWarningAcknowledged] = useState(false);
 
-  const handleFinalSubmit = () => {
+  const handleFinalSubmit = (forceSubmit = false) => {
     if (!validateStep(3)) return;
     if (submitting) return; // guard against double-tap
+
+    if (slotHasPending && !pendingWarningAcknowledged && forceSubmit !== true) {
+      setPendingWarningOpen(true);
+      return;
+    }
+
     setSubmitting(true);
     const payload = {
       ...(fixedResourceId ? {} : { resourceId: form.resourceId }),
@@ -887,7 +917,7 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
         ) : (
           <button
             type="button"
-            onClick={handleFinalSubmit}
+            onClick={() => handleFinalSubmit()}
             disabled={loading || submitting}
             className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors"
           >
@@ -914,6 +944,21 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
         confirmLabel="Edit Existing Booking"
         cancelLabel="Choose Different Time"
         confirmVariant="primary"
+      />
+
+      <ConfirmModal
+        open={pendingWarningOpen}
+        onClose={() => setPendingWarningOpen(false)}
+        onConfirm={() => {
+          setPendingWarningOpen(false);
+          setPendingWarningAcknowledged(true);
+          handleFinalSubmit(true);
+        }}
+        title="Contested Time Slot"
+        message="Warning: There is another pending request for this time slot. There is a risk of rejection. Do you want to continue and join the waitlist?"
+        confirmLabel="Continue"
+        cancelLabel="Cancel"
+        confirmVariant="warning"
       />
     </div>
   );

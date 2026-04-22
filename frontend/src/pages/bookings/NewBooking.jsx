@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
@@ -11,6 +11,7 @@ export default function NewBooking() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const rebookId = searchParams.get('rebook');
+  const directResourceId = searchParams.get('resourceId');
   const { user } = useAuth();
   // JWT may encode the user id as userId, sub, or id
   const currentUserId = user?.userId ?? user?.sub ?? user?.id ?? null;
@@ -51,13 +52,21 @@ export default function NewBooking() {
     }
   };
 
-  const formInitial = rebookSource
-    ? {
+  const formInitial = useMemo(() => {
+    if (rebookSource) {
+      return {
         resourceId: rebookSource.resourceId,
         purpose: rebookSource.purpose,
         expectedAttendees: rebookSource.expectedAttendees ?? '',
-      }
-    : {};
+      };
+    }
+    if (directResourceId) {
+      return {
+        resourceId: directResourceId,
+      };
+    }
+    return {};
+  }, [rebookSource, directResourceId]);
 
   return (
     <Layout title="New Booking">
@@ -89,9 +98,9 @@ export default function NewBooking() {
             </p>
           )}
 
-          {/* key forces a remount when rebook data arrives so initial values are applied */}
+          {/* key forces a remount when rebook or direct resource data arrives so initial values are applied */}
           <BookingForm
-            key={rebookId ?? 'new'}
+            key={rebookId || directResourceId || 'new'}
             initial={formInitial}
             onSubmit={handleSubmit}
             loading={loading}
