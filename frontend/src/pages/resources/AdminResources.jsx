@@ -414,8 +414,28 @@ const AdminResources = () => {
       setToast({ type: 'success', message: 'Resource deleted successfully!' });
       setDeleteTarget(null);
       fetchResources();
-    } catch {
-      setToast({ type: 'error', message: 'Failed to delete resource' });
+    } catch (err) {
+      // Extract detailed error message from backend response
+      let errorMsg = 'Failed to delete resource';
+      
+      if (err.response?.data?.message) {
+        errorMsg = err.response.data.message;
+      } else if (err.response?.data?.error) {
+        errorMsg = err.response.data.error;
+      } else if (err.response?.data?.errors && err.response.data.errors[0]?.message) {
+        errorMsg = err.response.data.errors[0].message;
+      } else if (err.message) {
+        errorMsg = err.message;
+      }
+      
+      // Log for debugging
+      console.error('Delete error details:', {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message
+      });
+      
+      setToast({ type: 'error', message: errorMsg });
     } finally {
       setDeleting(false);
     }
