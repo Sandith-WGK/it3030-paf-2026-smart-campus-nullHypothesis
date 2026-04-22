@@ -376,7 +376,7 @@ const AdminResources = () => {
       
       setPreviewData(parsedRows);
       setShowPreviewModal(true);
-    } catch (_err) {
+    } catch  {
       setToast({ type: 'error', message: 'Failed to parse CSV file' });
     }
   };
