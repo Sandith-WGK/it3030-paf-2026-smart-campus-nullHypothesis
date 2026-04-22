@@ -29,9 +29,18 @@ const AuthCallback = () => {
       // Decode the JWT payload (base64) to read the role claim
       try {
         const payloadBase64 = token.split('.')[1];
-        JSON.parse(atob(payloadBase64));
+        const base64 = payloadBase64.replace(/-/g, '+').replace(/_/g, '/');
+        const decoded = JSON.parse(window.atob(base64));
+
         login(token);
-        navigate('/dashboard', { replace: true });
+
+        if (decoded.role === 'TECHNICIAN') {
+           navigate('/technician/tasks', { replace: true });
+        return; 
+        } else {
+          // Default path for all other users
+          navigate('/dashboard', { replace: true });
+        }
       } catch {
         login(token);
         navigate('/dashboard', { replace: true });

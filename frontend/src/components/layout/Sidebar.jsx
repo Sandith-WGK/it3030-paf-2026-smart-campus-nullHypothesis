@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { isTechnician } from '../../utils/auth';
 import {
   LayoutDashboard,
   CalendarDays,
@@ -13,6 +14,7 @@ import {
   Bell,
   X,
   Ticket,
+  Briefcase,
 } from 'lucide-react';
 import bookingService from '../../services/api/bookingService';
 
@@ -29,6 +31,9 @@ export default function Sidebar({ open, onClose }) {
   const { user, loading } = useAuth();
   const admin = user?.role === 'MANAGER';
   const [pendingCount, setPendingCount] = useState(0);
+  const technician = isTechnician();
+  const canSeeTasks = admin || technician;
+
 
   useEffect(() => {
     // Wait until auth is resolved and the user is confirmed as MANAGER
@@ -122,6 +127,17 @@ export default function Sidebar({ open, onClose }) {
             <Wrench size={18} />
             Maintenance Tickets
           </NavLink>
+
+          {canSeeTasks && (
+            <NavLink
+              to="/technician/tasks"
+              className={({ isActive }) => `${navItem} ${isActive ? activeClass : inactiveClass}`}
+              onClick={onClose}
+            >
+              <Briefcase size={18} />
+              My Tasks
+            </NavLink>
+          )}
 
 
           {/* ── Admin section ── */}

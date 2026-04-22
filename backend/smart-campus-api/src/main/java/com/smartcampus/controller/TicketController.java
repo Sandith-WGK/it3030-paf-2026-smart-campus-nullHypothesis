@@ -57,13 +57,24 @@ public class TicketController {
         return ResponseEntity.ok(ApiResponse.success("Your tickets retrieved successfully", responses));
     }
 
+    @GetMapping("/mytasks")
+    @PreAuthorize("hasRole('TECHNICIAN')")
+    public ResponseEntity<ApiResponse<List<TicketResponse>>> getMyTasks(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        List<TicketResponse> responses = ticketService.getTicketsByAssignee(principal.getId());
+        return ResponseEntity.ok(ApiResponse.success("Assigned tasks retrieved successfully", responses));
+    }
+
     @PutMapping("/{id}/status")
     @PreAuthorize("hasRole('MANAGER') or hasRole('TECHNICIAN')")
     public ResponseEntity<ApiResponse<TicketResponse>> updateTicketStatus(
             @PathVariable String id,
-            @RequestBody TicketUpdateRequest request) {
+            @RequestBody TicketUpdateRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+         boolean isAdmin = principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));        
         TicketResponse response = ticketService.updateTicketStatus(
-                id, request.getStatus(), request.getResolutionNote(), request.getRejectionReason());
+                id, request.getStatus(), request.getResolutionNote(), request.getRejectionReason(), principal.getId(), isAdmin);
         return ResponseEntity.ok(ApiResponse.success("Ticket status updated successfully", response));
     }
 

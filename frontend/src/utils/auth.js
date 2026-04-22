@@ -39,6 +39,10 @@ export function getRoleLabel(role) {
   return ROLE_LABELS[role] || role || 'Unknown';
 }
 
+export function isTechnician() {
+  return getUserRole() === 'TECHNICIAN';
+}
+
 export function isAuthenticated() {
   const token = localStorage.getItem('token');
   if (!token) return false;

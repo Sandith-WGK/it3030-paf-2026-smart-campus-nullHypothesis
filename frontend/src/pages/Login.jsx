@@ -35,7 +35,13 @@ const Login = () => {
       // Save token and login context
       login(data.token);
 
-      navigate('/dashboard', { replace: true });
+      if (data.role === 'TECHNICIAN') {
+        navigate('/technician/tasks', { replace: true });
+        return;
+      } else {
+        // Default redirect for other roles (Admin, Student, etc.)
+        navigate('/dashboard', { replace: true });
+      }
     } catch (err) {
       const payload = err.response?.data;
       const message =

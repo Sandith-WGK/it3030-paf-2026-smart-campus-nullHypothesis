@@ -5,5 +5,9 @@ public enum Role {
     LECTURER,
     INSTRUCTOR,
     MANAGER,
-    TECHNICIAN
+    TECHNICIAN,
+    // Legacy compatibility roles used in older datasets/clients
+    USER,
+    ADMIN,
+    STUDENT
 }

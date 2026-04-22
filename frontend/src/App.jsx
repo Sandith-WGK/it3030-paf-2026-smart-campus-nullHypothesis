@@ -34,6 +34,7 @@ import MyTicketsPage from './pages/tickets/MyTicketsPage';
 import CreateTicketForm from './pages/tickets/CreateTicketForm';
 import TicketDetailPage from './pages/tickets/TicketDetailPage';
 import AdminTicketsPage from './pages/admin/AdminTicketsPage';
+import TechnicianTasksPage from './pages/tickets/TechnicianTasksPage';
 
 
 // Wrapper for any authenticated route
@@ -65,6 +66,43 @@ const AdminRoute = ({ children }) => {
   
   if (!isAuthenticated) return <Navigate to="/" replace />;
   if (user?.role !== 'MANAGER') return <Navigate to="/dashboard" replace />;
+  
+  return children;
+};
+
+// Wrapper for technician-only routes
+const TechnicianRoute = ({ children }) => {
+  const { user, isAuthenticated, loading } = useAuth();
+  
+  // 1. Wait if the initial loading is true
+  if (loading) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+        <div className="w-10 h-10 border-4 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // 2. IMPORTANT: If we are authenticated but the 'user' object hasn't 
+  // been decoded yet, stay in the loading state. 
+  // This prevents the "bounce" to the dashboard.
+  if (isAuthenticated && !user) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center bg-zinc-50 dark:bg-zinc-950">
+        <div className="w-10 h-10 border-4 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) return <Navigate to="/" replace />;
+  
+  // 3. Now that we are sure 'user' exists, check the role
+  const isTech = user?.role === 'TECHNICIAN';
+  const isAdm = user?.role === 'ADMIN';
+
+  if (!isTech && !isAdm) {
+    return <Navigate to="/dashboard" replace />;
+  }
   
   return children;
 };
@@ -106,6 +144,9 @@ function App() {
       <Route path="/tickets" element={<PrivateRoute><MyTicketsPage /></PrivateRoute>} />
       <Route path="/tickets/new" element={<PrivateRoute><CreateTicketForm /></PrivateRoute>} />
       <Route path="/tickets/:id" element={<PrivateRoute><TicketDetailPage /></PrivateRoute>} />
+
+      {/* Technician routes */}
+      <Route path="/technician/tasks" element={<TechnicianRoute><TechnicianTasksPage /></TechnicianRoute>} />
 
       {/* Admin routes */}
       <Route path="/admin/users" element={<AdminRoute><AdminDashboard /></AdminRoute>} />

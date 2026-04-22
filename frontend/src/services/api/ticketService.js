@@ -42,6 +42,19 @@ export const ticketService = {
     return response.data;
   },
 
+  // Get current technician's assigned tasks
+  getMyTasks: async () => {
+    const response = await api.get('/tickets/mytasks');
+    return response.data;
+  },
+
+  getAllUsers: async () => {
+    // We use the base axios instance 'api' which is already imported in this file
+    const response = await api.get('/users');
+    return response.data;
+  },
+
+
   // Update a ticket's status (ADMIN/TECHNICIAN)
   updateTicketStatus: async (id, statusData) => {
     // statusData format: { status: 'IN_PROGRESS', resolutionNote: '...', rejectionReason: '...' }
