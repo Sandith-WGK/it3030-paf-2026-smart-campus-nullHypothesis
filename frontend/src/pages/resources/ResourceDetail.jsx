@@ -332,7 +332,7 @@ const ResourceDetail = () => {
             {resource.status === 'ACTIVE' && (
               <div className="mt-8 pt-6 border-t border-zinc-200 dark:border-zinc-800">
                 <button
-                  onClick={() => navigate(`/bookings/create?resourceId=${id}`)}
+                  onClick={() => navigate(`/bookings/new?resourceId=${id}`)}
                   className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-lg transition-colors"
                 >
                   <ClockIcon size={18} />

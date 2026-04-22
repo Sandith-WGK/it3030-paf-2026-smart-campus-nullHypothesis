@@ -6,6 +6,12 @@ import BookingForm from '../../components/booking/BookingForm';
 import Toast from '../../components/common/Toast';
 import bookingService from '../../services/api/bookingService';
 
+function toHHmm(value) {
+  if (!value) return '';
+  const str = String(value);
+  return str.length >= 5 ? str.substring(0, 5) : str;
+}
+
 export default function EditBooking() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -63,8 +69,8 @@ export default function EditBooking() {
   const initial = {
     resourceId: booking.resourceId,
     date: booking.date,
-    startTime: booking.startTime,
-    endTime: booking.endTime,
+    startTime: toHHmm(booking.startTime),
+    endTime: toHHmm(booking.endTime),
     purpose: booking.purpose,
     expectedAttendees: booking.expectedAttendees ?? '',
   };

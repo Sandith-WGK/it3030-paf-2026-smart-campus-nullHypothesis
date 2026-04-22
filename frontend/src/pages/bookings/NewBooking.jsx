@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
@@ -7,10 +7,34 @@ import Toast from '../../components/common/Toast';
 import bookingService from '../../services/api/bookingService';
 import { useAuth } from '../../context/AuthContext';
 
+function toHHmm(value) {
+  if (!value) return '';
+  const str = String(value);
+  // Backend may return LocalTime like "10:00:00"; form dropdown expects "HH:MM".
+  return str.length >= 5 ? str.substring(0, 5) : str;
+}
+
+function getTodayLocalIso() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function toNextValidRebookDate(value) {
+  if (!value) return getTodayLocalIso();
+  const date = String(value).substring(0, 10);
+  const today = getTodayLocalIso();
+  // If original booking date is in the past, prefill with the next valid day (today).
+  return date < today ? today : date;
+}
+
 export default function NewBooking() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const rebookId = searchParams.get('rebook');
+  const directResourceId = searchParams.get('resourceId');
   const { user } = useAuth();
   // JWT may encode the user id as userId, sub, or id
   const currentUserId = user?.userId ?? user?.sub ?? user?.id ?? null;
@@ -51,13 +75,24 @@ export default function NewBooking() {
     }
   };
 
-  const formInitial = rebookSource
-    ? {
+  const formInitial = useMemo(() => {
+    if (rebookSource) {
+      return {
         resourceId: rebookSource.resourceId,
+        date: toNextValidRebookDate(rebookSource.date),
+        startTime: toHHmm(rebookSource.startTime),
+        endTime: toHHmm(rebookSource.endTime),
         purpose: rebookSource.purpose,
         expectedAttendees: rebookSource.expectedAttendees ?? '',
-      }
-    : {};
+      };
+    }
+    if (directResourceId) {
+      return {
+        resourceId: directResourceId,
+      };
+    }
+    return {};
+  }, [rebookSource, directResourceId]);
 
   return (
     <Layout title="New Booking">
@@ -89,9 +124,9 @@ export default function NewBooking() {
             </p>
           )}
 
-          {/* key forces a remount when rebook data arrives so initial values are applied */}
+          {/* key forces a remount when rebook or direct resource data arrives so initial values are applied */}
           <BookingForm
-            key={rebookId ?? 'new'}
+            key={rebookId || directResourceId || 'new'}
             initial={formInitial}
             onSubmit={handleSubmit}
             loading={loading}
