@@ -7,6 +7,29 @@ import Toast from '../../components/common/Toast';
 import bookingService from '../../services/api/bookingService';
 import { useAuth } from '../../context/AuthContext';
 
+function toHHmm(value) {
+  if (!value) return '';
+  const str = String(value);
+  // Backend may return LocalTime like "10:00:00"; form dropdown expects "HH:MM".
+  return str.length >= 5 ? str.substring(0, 5) : str;
+}
+
+function getTodayLocalIso() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function toNextValidRebookDate(value) {
+  if (!value) return getTodayLocalIso();
+  const date = String(value).substring(0, 10);
+  const today = getTodayLocalIso();
+  // If original booking date is in the past, prefill with the next valid day (today).
+  return date < today ? today : date;
+}
+
 export default function NewBooking() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -56,6 +79,9 @@ export default function NewBooking() {
     if (rebookSource) {
       return {
         resourceId: rebookSource.resourceId,
+        date: toNextValidRebookDate(rebookSource.date),
+        startTime: toHHmm(rebookSource.startTime),
+        endTime: toHHmm(rebookSource.endTime),
         purpose: rebookSource.purpose,
         expectedAttendees: rebookSource.expectedAttendees ?? '',
       };
