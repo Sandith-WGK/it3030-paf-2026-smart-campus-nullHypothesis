@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { isTechnician } from '../../utils/auth';
 import {
   LayoutDashboard,
   CalendarDays,
@@ -12,6 +13,8 @@ import {
   Wrench,
   Bell,
   X,
+  Ticket,
+  Briefcase,
 } from 'lucide-react';
 import bookingService from '../../services/api/bookingService';
 
@@ -28,6 +31,9 @@ export default function Sidebar({ open, onClose }) {
   const { user, loading } = useAuth();
   const admin = user?.role === 'ADMIN';
   const [pendingCount, setPendingCount] = useState(0);
+  const technician = isTechnician();
+  const canSeeTasks = admin || technician;
+
 
   useEffect(() => {
     // Wait until auth is resolved and the user is confirmed as ADMIN
@@ -122,14 +128,17 @@ export default function Sidebar({ open, onClose }) {
             Maintenance Tickets
           </NavLink>
 
-          <NavLink
-            to="/notifications"
-            className={({ isActive }) => `${navItem} ${isActive ? activeClass : inactiveClass}`}
-            onClick={onClose}
-          >
-            <Bell size={18} />
-            Notifications
-          </NavLink>
+          {canSeeTasks && (
+            <NavLink
+              to="/technician/tasks"
+              className={({ isActive }) => `${navItem} ${isActive ? activeClass : inactiveClass}`}
+              onClick={onClose}
+            >
+              <Briefcase size={18} />
+              My Tasks
+            </NavLink>
+          )}
+
 
           {/* ── Admin section ── */}
           {admin && (
@@ -170,6 +179,15 @@ export default function Sidebar({ open, onClose }) {
               >
                 <Package size={18} />
                 Manage Resources
+              </NavLink>
+
+              <NavLink
+                to="/admin/tickets"
+                className={({ isActive }) => `${navItem} ${isActive ? activeClass : inactiveClass}`}
+                onClick={onClose}
+              >
+                <Ticket size={18} />
+                Manage Tickets
               </NavLink>
             </>
           )}

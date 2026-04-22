@@ -12,6 +12,12 @@ public interface UserRepository extends MongoRepository<User, String> {
     // Find user by email — used during OAuth2 login to check if user exists
     Optional<User> findByEmail(String email);
 
+    // Find all records sharing the same email (for global preference sync)
+    java.util.List<User> findAllByEmail(String email);
+
     // Check if email already registered
     boolean existsByEmail(String email);
+
+    // Find users by role
+    java.util.List<User> findByRole(com.smartcampus.model.Role role);
 }

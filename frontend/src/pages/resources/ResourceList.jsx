@@ -33,23 +33,23 @@ const ResourceList = () => {
 
   // Fetch resources on component mount
   useEffect(() => {
+    const fetchResources = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const response = await resourceApi.getAll();
+        setResources(response.data.data || []);
+      } catch (err) {
+        setError('Failed to load resources. Please try again.');
+        console.error('Error fetching resources:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchResources();
   }, []);
-
-  const fetchResources = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const response = await resourceApi.getAll();
-      setResources(response.data.data || []);
-    } catch (err) {
-      setError('Failed to load resources. Please try again.');
-      console.error('Error fetching resources:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Apply filters and search locally for better UX
   const filteredResources = useMemo(() => {

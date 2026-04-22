@@ -1,40 +1,46 @@
 import api from './axios';
 
-const BASE = '/api/v1/bookings';
+const BASE = '/bookings';
 
 const bookingService = {
-  // POST /api/v1/bookings
+  // POST /bookings
   createBooking: (data) => api.post(BASE, data),
 
-  // GET /api/v1/bookings/my?status=...
+  // GET /bookings/my?status=...
   getMyBookings: (status) =>
     api.get(`${BASE}/my`, { params: status ? { status } : {} }),
 
-  // GET /api/v1/bookings?status=...&resourceId=...&userId=...&date=...
+  // GET /bookings?status=...&resourceId=...&userId=...&date=...
   getAllBookings: (filters = {}) => api.get(BASE, { params: filters }),
 
-  // GET /api/v1/bookings/:id
+  // GET /bookings/:id
   getBookingById: (id) => api.get(`${BASE}/${id}`),
 
-  // PUT /api/v1/bookings/:id
+  // PUT /bookings/:id
   updateBooking: (id, data) => api.put(`${BASE}/${id}`, data),
 
-  // PATCH /api/v1/bookings/:id/approve
+  // PATCH /bookings/:id/approve
   approveBooking: (id) => api.patch(`${BASE}/${id}/approve`),
 
-  // PATCH /api/v1/bookings/:id/reject
+  // PATCH /bookings/:id/reject
   rejectBooking: (id, rejectionReason) =>
     api.patch(`${BASE}/${id}/reject`, { rejectionReason }),
 
-  // PATCH /api/v1/bookings/:id/cancel
+  // PATCH /bookings/:id/cancel
   cancelBooking: (id) => api.patch(`${BASE}/${id}/cancel`),
 
-  // DELETE /api/v1/bookings/:id
+  // DELETE /bookings/:id
   deleteBooking: (id) => api.delete(`${BASE}/${id}`),
 
-  // GET /api/v1/bookings/resource-schedule?resourceId=...&date=...
+  // GET /bookings/resource-schedule?resourceId=...&date=...
   getResourceSchedule: (resourceId, date) =>
     api.get(`${BASE}/resource-schedule`, { params: { resourceId, date } }),
+
+  // GET /bookings/analytics  (admin only)
+  getBookingAnalytics: () => api.get(`${BASE}/analytics`),
+
+  // GET /bookings/:id/verify  (QR code check-in verification)
+  verifyBooking: (id) => api.get(`${BASE}/${id}/verify`),
 };
 
 export default bookingService;

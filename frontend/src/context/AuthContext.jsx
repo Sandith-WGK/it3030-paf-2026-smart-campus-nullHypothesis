@@ -27,7 +27,7 @@ export const AuthProvider = ({ children }) => {
       const padded = payloadBase64.padEnd(payloadBase64.length + (4 - (payloadBase64.length % 4)) % 4, '=');
       const payload = JSON.parse(atob(padded));
       return payload;
-    } catch (e) {
+    } catch {
       return null;
     }
   };
@@ -48,24 +48,22 @@ export const AuthProvider = ({ children }) => {
           // Ignore invalid non-url values (prevents broken <img> src like "profile")
           decodedUser.picture = '';
         }
-        setUser(decodedUser);
+        console.log('[DEBUG] AuthContext -> Setting user from DECODED TOKEN:', decodedUser);
+        setUser(decodedUser); // eslint-disable-line react-hooks/set-state-in-effect
         setIsAuthenticated(true);
 
-        // If key fields are missing from token (common after relogin for big picture),
-        // fetch the full user record once and merge it.
-        if (!isValidPictureSrc(decodedUser.picture) || !decodedUser.provider) {
-          const id = decodedUser.userId || decodedUser.sub || decodedUser.id;
-          if (id) {
-            (async () => {
-              try {
-                const freshUser = await userService.getUserById(id);
-                if (isValidPictureSrc(freshUser?.picture)) localStorage.setItem('user_pic', freshUser.picture);
-                setUser(prev => ({ ...prev, ...freshUser }));
-              } catch (e) {
-                // Non-fatal: profile will fall back to avatar placeholder
-              }
-            })();
-          }
+        const id = decodedUser.userId || decodedUser.sub || decodedUser.id;
+        if (id) {
+          (async () => {
+            try {
+              const freshUser = await userService.getUserById(id);
+              if (isValidPictureSrc(freshUser?.picture)) localStorage.setItem('user_pic', freshUser.picture);
+              console.log('[DEBUG] AuthContext -> Merging fresh user from BACKEND:', freshUser);
+              setUser(prev => ({ ...prev, ...freshUser }));
+            } catch (err) {
+              console.error('[DEBUG] AuthContext -> Fresh user fetch failed:', err);
+            }
+          })();
         }
       } else {
         setIsAuthenticated(false);
@@ -114,15 +112,46 @@ export const AuthProvider = ({ children }) => {
     setToken(newToken);
   }, []);
 
+  const updateUser = useCallback((newData) => {
+    setUser(prev => {
+      if (!prev) return null;
+      
+      // Deep merge for preferences to ensure we don't lose existing fields
+      const updatedPreferences = newData.preferences 
+        ? { ...(prev.preferences || {}), ...newData.preferences }
+        : prev.preferences;
+
+      const updatedNotifPreferences = newData.notificationPreferences
+        ? { ...(prev.notificationPreferences || {}), ...newData.notificationPreferences }
+        : prev.notificationPreferences;
+
+      console.log('[DEBUG] AuthContext -> Performing Deep Merge Update. Changes:', newData);
+      const updated = { 
+        ...prev, 
+        ...newData, 
+        preferences: updatedPreferences,
+        notificationPreferences: updatedNotifPreferences 
+      };
+      console.log('[DEBUG] AuthContext -> Final Updated User Object:', updated);
+      
+      // Sync large fields to localStorage if they were updated
+      if (isValidPictureSrc(newData.picture)) {
+        localStorage.setItem('user_pic', newData.picture);
+      }
+      return updated;
+    });
+  }, []);
+
   const logout = useCallback(() => {
     setToken(null);
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, token, isAuthenticated, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, isAuthenticated, login, logout, updateUser, loading }}>
       {children}
     </AuthContext.Provider>
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);

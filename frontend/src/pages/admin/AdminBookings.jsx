@@ -11,6 +11,7 @@ import {
   CheckSquare,
   Square,
   Loader2,
+  BarChart3,
 } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
 import BookingFilters from '../../components/booking/BookingFilters';
@@ -21,6 +22,7 @@ import Toast from '../../components/common/Toast';
 import EmptyState from '../../components/common/EmptyState';
 import { SkeletonGrid } from '../../components/common/Skeleton';
 import bookingService from '../../services/api/bookingService';
+import BookingAnalyticsPanel from '../../components/booking/BookingAnalyticsPanel';
 
 // Pending bookings always surface first, then sort by date descending
 function sortBookings(list) {
@@ -37,6 +39,7 @@ export default function AdminBookings() {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({});
   const [toast, setToast] = useState(null);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   // Single reject/approve
   const [rejectTarget, setRejectTarget] = useState(null);
@@ -118,7 +121,7 @@ export default function AdminBookings() {
       setToast({ type: 'success', message: `${ids.length} booking${ids.length > 1 ? 's' : ''} approved` });
       setBulkApproveOpen(false);
       animateAndReload(ids);
-    } catch (err) {
+    } catch {
       setToast({ type: 'error', message: 'Some bookings could not be approved' });
     } finally {
       setBulkLoading(false);
@@ -154,12 +157,43 @@ export default function AdminBookings() {
 
   return (
     <Layout title="Manage Bookings">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Manage Bookings</h2>
-        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
-          Review, approve or reject booking requests
-        </p>
+      {/* Page header */}
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Manage Bookings</h2>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
+            Review, approve or reject booking requests
+          </p>
+        </div>
+        <button
+          id="toggle-booking-analytics"
+          onClick={() => setShowAnalytics((v) => !v)}
+          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border transition-colors ${
+            showAnalytics
+              ? 'bg-violet-600 text-white border-violet-600 shadow-sm shadow-violet-400/20'
+              : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:border-violet-400 hover:text-violet-600'
+          }`}
+        >
+          <BarChart3 size={14} />
+          Analytics
+        </button>
       </div>
+
+      {/* Analytics panel */}
+      <AnimatePresence>
+        {showAnalytics && (
+          <Motion.div
+            key="analytics-panel"
+            initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+            animate={{ opacity: 1, height: 'auto', marginBottom: 24 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            className="overflow-hidden rounded-2xl border border-violet-200 dark:border-violet-500/30 bg-violet-50/50 dark:bg-violet-500/5 p-5"
+          >
+            <BookingAnalyticsPanel />
+          </Motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
@@ -257,7 +291,7 @@ export default function AdminBookings() {
       ) : (
         <div className="space-y-3">
           <AnimatePresence>
-            {bookings.map((b, i) => {
+            {bookings.map((b) => {
               const isRemoving = removingIds.has(b.id);
               const isPending = b.status === 'PENDING';
               const isSelected = selected.has(b.id);

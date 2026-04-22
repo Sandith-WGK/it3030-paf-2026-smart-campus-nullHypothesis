@@ -12,6 +12,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
 
+
+
 @Document(collection = "users")
 @Data
 @Builder
@@ -28,6 +30,9 @@ public class User {
     private String name;
 
     private String picture; // Google profile photo URL
+
+    @Builder.Default
+    private boolean hasCustomAvatar = false;
 
     private String provider; // "GOOGLE" or "LOCAL"
 
@@ -49,6 +54,18 @@ public class User {
     @JsonIgnore
     private Instant resetCodeExpiresAt;
 
+    @JsonIgnore
+    private String twoFactorCode;
+
+    @JsonIgnore
+    private Instant twoFactorCodeExpiresAt;
+
+    @Builder.Default
+    private UserPreference preferences = new UserPreference();
+
     @CreatedDate
     private Instant createdAt;
+
+    @Builder.Default
+    private NotificationPreference notificationPreferences = new NotificationPreference();
 }

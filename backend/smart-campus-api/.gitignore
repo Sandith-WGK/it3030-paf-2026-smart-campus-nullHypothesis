@@ -34,3 +34,8 @@ build/
 application-local.properties
 *.env
 application-local.properties
+
+# Ignore Spring Boot logs and compressed log files
+*.log
+*.log.*
+*.gz

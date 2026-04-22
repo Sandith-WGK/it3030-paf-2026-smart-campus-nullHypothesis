@@ -115,8 +115,12 @@ public class UserPrincipal implements OAuth2User, UserDetails {
         return provider;
     }
 
+    public String getDisplayName() {
+        return name;
+    }
+
     @Override
     public String getName() {
-        return name;
+        return id;
     }
 }

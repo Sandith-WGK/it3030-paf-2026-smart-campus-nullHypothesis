@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { authService } from '../services/api/authService';
 
@@ -16,6 +16,8 @@ const ResetPassword = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -62,6 +64,30 @@ const ResetPassword = () => {
       setError(typeof err.response?.data === 'string' ? err.response.data : "Reset failed. Please check the code and try again.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  const handleResendCode = async () => {
+    if (!formData.email || resendLoading || resendCooldown > 0) return;
+    setError('');
+    setSuccessMsg('');
+    setResendLoading(true);
+    try {
+      const message = await authService.resendResetCode(formData.email);
+      setSuccessMsg(typeof message === 'string' ? message : 'A new reset code has been sent.');
+      setResendCooldown(30);
+    } catch (err) {
+      setError(typeof err.response?.data === 'string' ? err.response.data : "Could not resend code. Please try again.");
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -148,6 +174,19 @@ const ResetPassword = () => {
                 placeholder="000000"
               />
             </div>
+
+            <button
+              type="button"
+              onClick={handleResendCode}
+              disabled={!formData.email || isLoading || resendLoading || resendCooldown > 0}
+              className="flex w-full justify-center rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700/60"
+            >
+              {resendLoading
+                ? "Sending..."
+                : resendCooldown > 0
+                  ? `Resend code in ${resendCooldown}s`
+                  : "Resend code"}
+            </button>
 
             <div className="space-y-4">
               <div className="relative">

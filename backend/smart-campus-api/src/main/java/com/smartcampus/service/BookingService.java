@@ -1,5 +1,6 @@
 package com.smartcampus.service;
 
+import com.smartcampus.dto.booking.BookingAnalyticsResponse;
 import com.smartcampus.dto.booking.BookingRejectRequest;
 import com.smartcampus.dto.booking.BookingRequest;
 import com.smartcampus.dto.booking.BookingResponse;
@@ -8,24 +9,23 @@ import com.smartcampus.exception.BookingConflictException;
 import com.smartcampus.exception.InvalidBookingStateException;
 import com.smartcampus.exception.ResourceNotFoundException;
 import com.smartcampus.exception.UnauthorizedAccessException;
-import com.smartcampus.model.Booking;
-import com.smartcampus.model.BookingStatus;
-import com.smartcampus.model.Notification;
-import com.smartcampus.model.NotifType;
-import com.smartcampus.model.Resource;
-import com.smartcampus.model.ResourceStatus;
-import com.smartcampus.model.User;
+import com.smartcampus.model.*;
 import com.smartcampus.repository.BookingRepository;
-import com.smartcampus.repository.NotificationRepository;
 import com.smartcampus.repository.ResourceRepository;
 import com.smartcampus.repository.UserRepository;
+import com.smartcampus.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.TextStyle;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -37,7 +37,7 @@ public class BookingService {
     private final BookingRepository bookingRepository;
     private final ResourceRepository resourceRepository;
     private final UserRepository userRepository;
-    private final NotificationRepository notificationRepository;
+    private final NotificationService notificationService;
 
     // ── Create ──────────────────────────────────────────────────────────────
 
@@ -49,6 +49,7 @@ public class BookingService {
         validateTimeRange(request.getStartTime(), request.getEndTime());
         validateWithinAvailabilityWindow(resource, request.getStartTime(), request.getEndTime());
         validateCapacity(resource, request.getExpectedAttendees());
+        checkForDuplicateBooking(request.getResourceId(), userId, request.getDate(), request.getStartTime(), request.getEndTime(), null);
         checkForConflicts(request.getResourceId(), request.getDate(), request.getStartTime(), request.getEndTime(), null);
 
         Booking booking = Booking.builder()
@@ -64,6 +65,22 @@ public class BookingService {
 
         Booking saved = bookingRepository.save(booking);
         User user = userRepository.findById(userId).orElse(null);
+        
+        // Notify all admins about the new booking
+        List<User> admins = userRepository.findByRole(Role.ADMIN);
+        String userName = user != null ? user.getName() : "A user";
+        String resourceName = resource != null ? resource.getName() : "resource";
+        for (User admin : admins) {
+            notificationService.sendNotification(
+                    admin.getId(),
+                    String.format("%s has requested a booking for %s on %s", userName, resourceName, saved.getDate()),
+                    NotifType.BOOKING_CREATED,
+                    Severity.INFO,
+                    saved.getId(),
+                    "BOOKING"
+            );
+        }
+        
         return BookingResponse.from(saved, resource, user);
     }
 
@@ -156,7 +173,8 @@ public class BookingService {
         validateResourceAvailability(resource);
         validateWithinAvailabilityWindow(resource, request.getStartTime(), request.getEndTime());
         validateCapacity(resource, request.getExpectedAttendees());
-        checkForConflicts(booking.getResourceId(), request.getDate(), request.getStartTime(), request.getEndTime(), null);
+        checkForDuplicateBooking(booking.getResourceId(), userId, request.getDate(), request.getStartTime(), request.getEndTime(), bookingId);
+        checkForConflicts(booking.getResourceId(), request.getDate(), request.getStartTime(), request.getEndTime(), bookingId);
 
         booking.setDate(request.getDate());
         booking.setStartTime(request.getStartTime());
@@ -178,22 +196,27 @@ public class BookingService {
             throw new InvalidBookingStateException("Only pending bookings can be approved");
         }
 
+        Resource resource = resourceRepository.findById(booking.getResourceId())
+                .orElseThrow(() -> new ResourceNotFoundException("Resource", "id", booking.getResourceId()));
+
+        // Exclusive mode: block if any other APPROVED booking overlaps this slot.
+        // PENDING bookings are not counted — admin may approve whichever one they choose first.
         checkForConflicts(booking.getResourceId(), booking.getDate(),
-                booking.getStartTime(), booking.getEndTime(), null);
+                booking.getStartTime(), booking.getEndTime(), booking.getId());
 
         booking.setStatus(BookingStatus.APPROVED);
         Booking saved = bookingRepository.save(booking);
 
-        Resource resource = resourceRepository.findById(booking.getResourceId()).orElse(null);
-        String resourceName = resource != null ? resource.getName() : "resource";
+        String resourceName = resource.getName();
 
-        notificationRepository.save(Notification.builder()
-                .userId(booking.getUserId())
-                .type(NotifType.BOOKING_APPROVED)
-                .message(String.format("Your booking for %s on %s has been approved.", resourceName, booking.getDate()))
-                .referenceId(booking.getId())
-                .referenceType("BOOKING")
-                .build());
+        notificationService.sendNotification(
+                booking.getUserId(),
+                String.format("Your booking for %s on %s has been approved.", resourceName, booking.getDate()),
+                NotifType.BOOKING_APPROVED,
+                Severity.SUCCESS,
+                booking.getId(),
+                "BOOKING"
+        );
 
         User user = userRepository.findById(booking.getUserId()).orElse(null);
         return BookingResponse.from(saved, resource, user);
@@ -215,14 +238,15 @@ public class BookingService {
         Resource resource = resourceRepository.findById(booking.getResourceId()).orElse(null);
         String resourceName = resource != null ? resource.getName() : "resource";
 
-        notificationRepository.save(Notification.builder()
-                .userId(booking.getUserId())
-                .type(NotifType.BOOKING_REJECTED)
-                .message(String.format("Your booking for %s on %s was rejected: %s",
-                        resourceName, booking.getDate(), request.getRejectionReason()))
-                .referenceId(booking.getId())
-                .referenceType("BOOKING")
-                .build());
+        notificationService.sendNotification(
+                booking.getUserId(),
+                String.format("Your booking for %s on %s was rejected: %s",
+                        resourceName, booking.getDate(), request.getRejectionReason()),
+                NotifType.BOOKING_REJECTED,
+                Severity.ALERT,
+                booking.getId(),
+                "BOOKING"
+        );
 
         User user = userRepository.findById(booking.getUserId()).orElse(null);
         return BookingResponse.from(saved, resource, user);
@@ -248,14 +272,33 @@ public class BookingService {
         // Notify only when an admin cancels on behalf of the user
         if (isAdmin && !booking.getUserId().equals(userId)) {
             String resourceName = resource != null ? resource.getName() : "resource";
-            notificationRepository.save(Notification.builder()
-                    .userId(booking.getUserId())
-                    .type(NotifType.BOOKING_CANCELLED)
-                    .message(String.format("Your booking for %s on %s has been cancelled by an administrator.",
-                            resourceName, booking.getDate()))
-                    .referenceId(booking.getId())
-                    .referenceType("BOOKING")
-                    .build());
+            notificationService.sendNotification(
+                    booking.getUserId(),
+                    String.format("Your booking for %s on %s has been cancelled by an administrator.",
+                            resourceName, booking.getDate()),
+                    NotifType.BOOKING_CANCELLED,
+                    Severity.ALERT,
+                    booking.getId(),
+                    "BOOKING"
+            );
+        } else if (!isAdmin && booking.getUserId().equals(userId)) {
+            // Notify all admins when a user cancels their own booking
+            List<User> admins = userRepository.findByRole(Role.ADMIN);
+            User user = userRepository.findById(userId).orElse(null);
+            String userName = user != null ? user.getName() : "A user";
+            String resourceName = resource != null ? resource.getName() : "resource";
+            
+            for (User admin : admins) {
+                notificationService.sendNotification(
+                        admin.getId(),
+                        String.format("%s has cancelled their booking for %s on %s", 
+                                userName, resourceName, saved.getDate()),
+                        NotifType.BOOKING_CANCELLED,
+                        Severity.INFO,
+                        saved.getId(),
+                        "BOOKING"
+                );
+            }
         }
 
         User user = userRepository.findById(booking.getUserId()).orElse(null);
@@ -279,17 +322,192 @@ public class BookingService {
         bookingRepository.delete(booking);
     }
 
+    // ── Analytics ─────────────────────────────────────────────────────────────
+
+    /**
+     * Aggregates all booking data for the admin analytics dashboard.
+     * Performs in-memory stream aggregation over all bookings.
+     */
+    public BookingAnalyticsResponse getBookingAnalytics() {
+        List<Booking> all = bookingRepository.findAll();
+
+        // ── Status counts ──────────────────────────────────────────────────────
+        long approved  = all.stream().filter(b -> b.getStatus() == BookingStatus.APPROVED).count();
+        long rejected  = all.stream().filter(b -> b.getStatus() == BookingStatus.REJECTED).count();
+        long cancelled = all.stream().filter(b -> b.getStatus() == BookingStatus.CANCELLED).count();
+        long pending   = all.stream().filter(b -> b.getStatus() == BookingStatus.PENDING).count();
+        long total     = all.size();
+
+        double approvalRate = (approved + rejected) == 0
+                ? 0.0
+                : Math.round((approved * 100.0 / (approved + rejected)) * 10.0) / 10.0;
+
+        // ── Top 5 resources ────────────────────────────────────────────────────
+        Map<String, Long> resourceCounts = all.stream()
+                .collect(Collectors.groupingBy(Booking::getResourceId, Collectors.counting()));
+
+        // Resolve resource names in one batch query
+        List<String> topResourceIds = resourceCounts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(5)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+
+        Map<String, Resource> resourceMap = resourceRepository.findAllById(topResourceIds).stream()
+                .collect(Collectors.toMap(Resource::getId, Function.identity()));
+
+        List<BookingAnalyticsResponse.ResourceUsage> topResources = topResourceIds.stream()
+                .map(id -> {
+                    Resource r = resourceMap.get(id);
+                    String name = r != null ? r.getName() : id;
+                    return new BookingAnalyticsResponse.ResourceUsage(id, name, resourceCounts.get(id));
+                })
+                .collect(Collectors.toList());
+
+        // ── Peak hours (0-23) ──────────────────────────────────────────────────
+        Map<Integer, Long> hourMap = all.stream()
+                .filter(b -> b.getStartTime() != null)
+                .collect(Collectors.groupingBy(
+                        b -> b.getStartTime().getHour(),
+                        Collectors.counting()));
+
+        List<BookingAnalyticsResponse.HourlyCount> peakHours = hourMap.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(e -> new BookingAnalyticsResponse.HourlyCount(e.getKey(), e.getValue()))
+                .collect(Collectors.toList());
+
+        // ── Bookings by day-of-week ────────────────────────────────────────────
+        // Preserve MON→SUN order using a LinkedHashMap seeded with all 7 days
+        Map<DayOfWeek, Long> dowMap = all.stream()
+                .filter(b -> b.getDate() != null)
+                .collect(Collectors.groupingBy(
+                        b -> b.getDate().getDayOfWeek(),
+                        Collectors.counting()));
+
+        List<BookingAnalyticsResponse.DayOfWeekCount> bookingsByDay = new ArrayList<>();
+        for (DayOfWeek dow : DayOfWeek.values()) {
+            String label = dow.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).toUpperCase();
+            bookingsByDay.add(new BookingAnalyticsResponse.DayOfWeekCount(
+                    label, dowMap.getOrDefault(dow, 0L)));
+        }
+
+        // ── Top 5 users ────────────────────────────────────────────────────────
+        Map<String, Long> userCounts = all.stream()
+                .collect(Collectors.groupingBy(Booking::getUserId, Collectors.counting()));
+
+        List<String> topUserIds = userCounts.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(5)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+
+        Map<String, User> userMap = userRepository.findAllById(topUserIds).stream()
+                .collect(Collectors.toMap(User::getId, Function.identity()));
+
+        List<BookingAnalyticsResponse.UserBookingCount> topUsers = topUserIds.stream()
+                .map(id -> {
+                    User u = userMap.get(id);
+                    String name = u != null ? u.getName() : id;
+                    return new BookingAnalyticsResponse.UserBookingCount(id, name, userCounts.get(id));
+                })
+                .collect(Collectors.toList());
+
+        return BookingAnalyticsResponse.builder()
+                .totalBookings(total)
+                .approvedCount(approved)
+                .rejectedCount(rejected)
+                .cancelledCount(cancelled)
+                .pendingCount(pending)
+                .approvalRate(approvalRate)
+                .topResources(topResources)
+                .peakHours(peakHours)
+                .bookingsByDayOfWeek(bookingsByDay)
+                .topUsers(topUsers)
+                .build();
+    }
+
     // ── Resource Schedule ─────────────────────────────────────────────────────
 
-    public List<BookingResponse> getResourceSchedule(String resourceId, LocalDate date) {
+    // Task 7: Privacy fix for getResourceSchedule.
+    // APPROVED bookings are returned in full (all authenticated users need to see them to
+    // judge availability before booking).
+    // PENDING bookings: the requesting user sees their own in full (so the frontend
+    // userDuplicate check still works). Other users' PENDING bookings are anonymised —
+    // we expose only timing/status so they know the slot is "tentatively busy", but
+    // no userId, name, email, or purpose is leaked.
+    public List<BookingResponse> getResourceSchedule(String resourceId, LocalDate date, String requestingUserId) {
         Resource resource = resourceRepository.findById(resourceId)
                 .orElseThrow(() -> new ResourceNotFoundException("Resource", "id", resourceId));
-        List<Booking> bookings = bookingRepository
+
+        List<Booking> approved = bookingRepository
                 .findByResourceIdAndDateAndStatus(resourceId, date, BookingStatus.APPROVED);
-        Map<String, User> userMap = buildUserMap(bookings);
-        return bookings.stream()
-                .map(b -> BookingResponse.from(b, resource, userMap.get(b.getUserId())))
-                .collect(Collectors.toList());
+        List<Booking> pending = bookingRepository
+                .findByResourceIdAndDateAndStatus(resourceId, date, BookingStatus.PENDING);
+
+        // Build a user map only for the approved bookings + the requesting user's own pending ones
+        List<Booking> fullDetailBookings = new ArrayList<>();
+        fullDetailBookings.addAll(approved);
+        pending.stream()
+               .filter(b -> b.getUserId().equals(requestingUserId))
+               .forEach(fullDetailBookings::add);
+
+        Map<String, User> userMap = buildUserMap(fullDetailBookings);
+
+        List<BookingResponse> result = new ArrayList<>();
+
+        // Full detail for APPROVED bookings
+        for (Booking b : approved) {
+            result.add(BookingResponse.from(b, resource, userMap.get(b.getUserId())));
+        }
+
+        // PENDING: own = full detail, others = anonymous "Busy" block
+        for (Booking b : pending) {
+            if (b.getUserId().equals(requestingUserId)) {
+                result.add(BookingResponse.from(b, resource, userMap.get(b.getUserId())));
+            } else {
+                // Strip PII — only expose timing so the frontend avoids the slot
+                result.add(BookingResponse.builder()
+                        .id(b.getId())
+                        .resourceId(b.getResourceId())
+                        .resourceName(resource.getName())
+                        .date(b.getDate())
+                        .startTime(b.getStartTime())
+                        .endTime(b.getEndTime())
+                        .status(b.getStatus())
+                        // userId / userName / userEmail / purpose intentionally omitted
+                        .build());
+            }
+        }
+
+        return result;
+    }
+
+    // ── QR Code Check-In Verification ──────────────────────────────────────
+
+    /**
+     * Verifies a booking for QR code check-in.
+     * Validates that the booking exists, is APPROVED, and its date is today.
+     * Returns full booking details so the person scanning can verify identity.
+     */
+    public BookingResponse verifyBookingForCheckIn(String bookingId) {
+        Booking booking = findBookingOrThrow(bookingId);
+
+        if (booking.getStatus() != BookingStatus.APPROVED) {
+            throw new InvalidBookingStateException(
+                    String.format("This booking is not valid for check-in (status: %s). Only APPROVED bookings can be verified.",
+                            booking.getStatus()));
+        }
+
+        LocalDate today = LocalDate.now();
+        if (!booking.getDate().equals(today)) {
+            throw new InvalidBookingStateException(
+                    String.format("This booking is for %s, but today is %s. Check-in is only allowed on the booking date.",
+                            booking.getDate(), today));
+        }
+
+        Resource resource = resourceRepository.findById(booking.getResourceId()).orElse(null);
+        User user = userRepository.findById(booking.getUserId()).orElse(null);
+        return BookingResponse.from(booking, resource, user);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -338,6 +556,34 @@ public class BookingService {
         }
     }
 
+
+    /**
+     * Throws BookingConflictException if the requesting user already has an active
+     * (PENDING or APPROVED) booking for the same resource at an overlapping time.
+     * Prevents duplicate bookings from the same user.
+     */
+    private void checkForDuplicateBooking(String resourceId, String userId,
+            LocalDate date, LocalTime startTime, LocalTime endTime,
+            String excludeBookingId) {
+        List<Booking> duplicates = bookingRepository
+                .findUserOverlappingBookings(resourceId, userId, date, startTime, endTime);
+
+        if (excludeBookingId != null) {
+            duplicates = duplicates.stream()
+                    .filter(b -> !b.getId().equals(excludeBookingId))
+                    .collect(Collectors.toList());
+        }
+
+        if (!duplicates.isEmpty()) {
+            Booking existing = duplicates.get(0);
+            throw new BookingConflictException(String.format(
+                    "You already have a %s booking for this resource on %s (%s – %s). " +
+                    "Please edit or cancel your existing booking instead.",
+                    existing.getStatus(), existing.getDate(),
+                    existing.getStartTime(), existing.getEndTime()));
+        }
+    }
+
     /**
      * Throws BookingConflictException if any APPROVED booking overlaps the requested slot.
      * The excludeBookingId parameter is reserved for future use (e.g., update self-check).
@@ -356,8 +602,8 @@ public class BookingService {
         if (!conflicts.isEmpty()) {
             Booking conflict = conflicts.get(0);
             throw new BookingConflictException(String.format(
-                    "Time slot conflicts with an existing approved booking (%s – %s on %s)",
-                    conflict.getStartTime(), conflict.getEndTime(), conflict.getDate()));
+                    "Time slot conflicts with an existing approved booking [ID: %s] (%s – %s on %s)",
+                    conflict.getId(), conflict.getStartTime(), conflict.getEndTime(), conflict.getDate()));
         }
     }
 

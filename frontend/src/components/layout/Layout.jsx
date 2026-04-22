@@ -3,7 +3,7 @@ import { Menu } from 'lucide-react';
 import Sidebar from './Sidebar';
 import Navbar from '../Navbar';
 
-export default function Layout({ children, title }) {
+export default function Layout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (

@@ -24,5 +24,20 @@ export const userService = {
   deleteUser: async (id) => {
     const response = await api.delete(`/users/${id}`);
     return response.data;
+  },
+  
+  updatePreferences: async (id, preferences) => {
+    const response = await api.put(`/users/${id}/preferences`, preferences);
+    return response.data;
+  },
+
+  updateNotificationPreferences: async (id, prefs) => {
+    const response = await api.put(`/users/${id}/notification-preferences`, prefs);
+    return response.data;
+  },
+
+  getUserActivity: async (id) => {
+    const response = await api.get(`/users/${id}/activity`);
+    return response.data;
   }
 };

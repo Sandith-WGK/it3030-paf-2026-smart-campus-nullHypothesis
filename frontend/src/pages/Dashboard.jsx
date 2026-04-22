@@ -4,9 +4,10 @@ import { motion as Motion } from 'framer-motion';
 import {
   CalendarDays, Wrench, Bell, BookOpen,
   Users, ClipboardList, Package, AlertCircle,
+  Briefcase
 } from 'lucide-react';
 import Layout from '../components/layout/Layout';
-import { isAdmin } from '../utils/auth';
+import { isAdmin,isTechnician } from '../utils/auth';
 import bookingService from '../services/api/bookingService';
 import { userService } from '../services/api/userService';
 import resourceService from '../services/api/resourceService';
@@ -62,11 +63,12 @@ const userCards = [
   },
 ];
 
-function AdminStatCard({ label, value, icon: Icon, color, bg, loading: busy }) {
+// eslint-disable-next-line no-unused-vars
+function AdminStatCard({ label, value, icon: StatIcon, color, bg, loading: busy }) {
   return (
     <div className={`rounded-xl ${bg} border border-zinc-200 dark:border-zinc-800 px-5 py-4 flex items-center gap-4`}>
       <div className={`rounded-lg p-2.5 ${bg}`}>
-        <Icon size={20} className={color} />
+        <StatIcon size={20} className={color} />
       </div>
       <div>
         <p className={`text-2xl font-bold ${color}`}>
@@ -123,6 +125,7 @@ const adminCards = [
 export default function Dashboard() {
   const navigate = useNavigate();
   const admin = isAdmin();
+  const technician = isTechnician();
 
   const [counts, setCounts] = useState({
     pendingBookings: 0,
@@ -169,6 +172,34 @@ export default function Dashboard() {
             : "Here's a quick overview of your Smart Campus activity."}
         </p>
       </div>
+     
+      
+      {technician && (
+        <Motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          // Use userCards.length instead of cards.length
+          transition={{ delay: userCards.length * 0.07 }} 
+          className="rounded-2xl border border-violet-100 dark:border-violet-500/20 bg-white dark:bg-zinc-900 p-6 shadow-sm hover:shadow-md transition-shadow mb-10"
+        >
+          <div className="inline-flex rounded-xl bg-violet-50 dark:bg-violet-500/10 p-3 mb-4">
+            {/* Make sure Briefcase is imported at the top */}
+            <Wrench size={22} className="text-violet-600 dark:text-violet-400" />
+          </div>
+          <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-1.5">
+            Technician Tasks
+          </h3>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-5 leading-relaxed">
+            View and manage the maintenance tickets assigned to you for resolution.
+          </p>
+          <button
+            onClick={() => navigate('/technician/tasks')}
+            className="text-sm font-semibold px-4 py-2 rounded-lg transition-colors text-violet-600 bg-violet-50 hover:bg-violet-100 dark:text-violet-300 dark:bg-violet-500/10 dark:hover:bg-violet-500/20"
+          >
+            View My Tasks
+          </button>
+        </Motion.div>
+      )}
 
       {/* ── Admin: live stats strip ── */}
       {admin && (
