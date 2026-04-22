@@ -30,11 +30,30 @@ public class TicketServiceImpl implements TicketService {
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
     private final AttachmentService attachmentService;
+    
+    private synchronized String generateTicketCode() {
+        return ticketRepository.findFirstByOrderByTicketCodeDesc()
+                .map(ticket -> {
+                    String lastCode = ticket.getTicketCode();
+                    if (lastCode != null && lastCode.startsWith("T") && lastCode.length() > 1) {
+                        try {
+                            int number = Integer.parseInt(lastCode.substring(1));
+                            return String.format("T%03d", number + 1);
+                        } catch (NumberFormatException e) {
+                            return "T001";
+                        }
+                    }
+                    return "T001";
+                })
+                .orElse("T001");
+    }
+
     private final NotificationService notificationService;
 
     @Override
     public TicketResponse createTicket(TicketCreateRequest request, String reporterId) {
         Ticket ticket = Ticket.builder()
+                .ticketCode(generateTicketCode())
                 .category(request.getCategory())
                 .description(request.getDescription())
                 .priority(request.getPriority())
@@ -148,6 +167,13 @@ public class TicketServiceImpl implements TicketService {
             }
         }
 
+        // Set firstResponseAt if this is the first response (status change from OPEN)
+        if (currentStatus == TicketStatus.OPEN && newStatus != TicketStatus.OPEN) {
+            if (ticket.getFirstResponseAt() == null) {
+                ticket.setFirstResponseAt(Instant.now());
+            }
+        }
+
         Ticket saved = ticketRepository.save(ticket);
 
         // Notify the reporter about status change
@@ -171,6 +197,12 @@ public class TicketServiceImpl implements TicketService {
     public TicketResponse assignTechnician(String ticketId, String technicianId) {
         Ticket ticket = getTicketEntity(ticketId);
         ticket.setAssigneeId(technicianId);
+
+        // Assigning a technician also counts as a first response
+        if (ticket.getFirstResponseAt() == null) {
+            ticket.setFirstResponseAt(Instant.now());
+        }
+
         Ticket saved = ticketRepository.save(ticket);
 
         // Notify the technician
@@ -223,8 +255,13 @@ public class TicketServiceImpl implements TicketService {
     }
 
     private TicketResponse mapToResponse(Ticket ticket) {
+        String code = ticket.getTicketCode() != null 
+            ? ticket.getTicketCode() 
+            : (ticket.getId() != null && ticket.getId().length() >= 4 ? "T-OLD-" + ticket.getId().substring(0, 4).toUpperCase() : "T-UNK");
+
         return TicketResponse.builder()
                 .id(ticket.getId())
+                .ticketCode(code)
                 .resourceId(ticket.getResourceId())
                 .reporterId(ticket.getReporterId())
                 .assigneeId(ticket.getAssigneeId())
@@ -238,6 +275,7 @@ public class TicketServiceImpl implements TicketService {
                 .rejectionReason(ticket.getRejectionReason())
                 .createdAt(ticket.getCreatedAt())
                 .resolvedAt(ticket.getResolvedAt())
+                .firstResponseAt(ticket.getFirstResponseAt())
                 .build();
     }
 }
