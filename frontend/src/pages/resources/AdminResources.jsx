@@ -6,7 +6,8 @@ import {
   Plus, Download, Upload, Edit, Trash2, X, 
   Building2, FlaskConical, DoorOpen, Wrench,
   ChevronLeft, ChevronRight, AlertCircle,
-  Search, Loader2, CheckCircle, Power, PowerOff
+  Search, Loader2, CheckCircle, Power, PowerOff,
+  Eye, FileText
 } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
 import Toast from '../../components/common/Toast';
@@ -83,8 +84,70 @@ const EmptyState = ({ hasFilters, onClearFilters, onAddResource }) => (
 );
 
 /**
+ * Helper function to parse CSV line (handles quoted values)
+ */
+const parseCSVLine = (line) => {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current.trim());
+  
+  return result;
+};
+
+/**
+ * Convert resources to CSV format
+ */
+const convertToCSV = (data) => {
+  if (!data || data.length === 0) return '';
+  
+  const headers = ['ID', 'Name', 'Type', 'Capacity', 'Location', 'Status', 'Availability Start', 'Availability End', 'Description'];
+  const rows = data.map(resource => [
+    resource.id || '',
+    resource.name || '',
+    resource.type || '',
+    resource.capacity || '',
+    resource.location || '',
+    resource.status || '',
+    resource.availabilityStart || '',
+    resource.availabilityEnd || '',
+    resource.description || ''
+  ]);
+  
+  const csvContent = [headers, ...rows].map(row => row.join(',')).join('\n');
+  return csvContent;
+};
+
+/**
+ * Download CSV file
+ */
+const downloadCSV = (csvContent, filename) => {
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  link.href = url;
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+/**
  * AdminResources - Admin management page for resources
- * Includes table view, CRUD operations, import/export, and direct status toggle
  */
 const AdminResources = () => {
   const navigate = useNavigate();
@@ -99,6 +162,11 @@ const AdminResources = () => {
   const [typeFilter, setTypeFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   
+  // Import preview states
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewData, setPreviewData] = useState([]);
+  //const [parsingPreview, setParsingPreview] = useState(false);
+
   // Delete confirmation modal
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -126,6 +194,58 @@ const AdminResources = () => {
     fetchResources();
   }, [fetchResources]);
 
+  // Parse CSV and show preview
+  const handleFileSelect = async (file) => {
+    setImportFile(file);
+    
+    if (!file) return;
+    
+    //setParsingPreview(true);
+    try {
+      const text = await file.text();
+      console.log("Raw CSV text length:", text.length);
+      
+      // Split by both \n and \r\n, filter empty lines
+      const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+      console.log("Number of lines:", lines.length);
+      
+      if (lines.length === 0) {
+        setToast({ type: 'error', message: 'CSV file is empty' });
+        return;
+      }
+      
+      // Get headers from first line (convert to lowercase for consistency)
+      const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase());
+      console.log("Headers:", headers);
+      
+      const parsedRows = [];
+      
+      // Parse up to 20 rows (skip header)
+      for (let i = 1; i < Math.min(lines.length, 21); i++) {
+        const values = parseCSVLine(lines[i]);
+        const rowData = {};
+        
+        headers.forEach((header, idx) => {
+          rowData[header] = values[idx] || '';
+        });
+        
+        parsedRows.push({
+          ...rowData,
+          rowNumber: i
+        });
+      }
+      
+      console.log("Parsed rows count:", parsedRows.length);
+      setPreviewData(parsedRows);
+      setShowPreviewModal(true);
+    } catch (err) {
+      console.error("Parse error:", err);
+      setToast({ type: 'error', message: 'Failed to parse CSV file: ' + err.message });
+    } finally {
+      //setParsingPreview(false);
+    }
+  };
+
   // Handle direct status toggle
   const handleStatusToggle = async (id, currentStatus) => {
     const newStatus = currentStatus === 'ACTIVE' ? 'OUT_OF_SERVICE' : 'ACTIVE';
@@ -137,7 +257,7 @@ const AdminResources = () => {
         type: 'success', 
         message: `Resource status changed to ${newStatus === 'ACTIVE' ? 'Active' : 'Out of Service'}` 
       });
-      fetchResources(); // Refresh the list
+      fetchResources();
     } catch {
       setToast({ type: 'error', message: 'Failed to update resource status' });
     } finally {
@@ -170,12 +290,42 @@ const AdminResources = () => {
     setDeleteTarget(null);
   };
 
-  // Handle export
+  // Handle export - respects current filters
   const handleExport = async () => {
     try {
       setExporting(true);
-      await resourceApi.exportResources();
-      setToast({ type: 'success', message: 'Resources exported successfully!' });
+      
+      // Get filtered resources based on current filters
+      let dataToExport = [...resources];
+      
+      // Apply search filter
+      if (searchTerm) {
+        dataToExport = dataToExport.filter(resource =>
+          resource.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          resource.location?.toLowerCase().includes(searchTerm.toLowerCase())
+        );
+      }
+      
+      // Apply type filter
+      if (typeFilter !== 'ALL') {
+        dataToExport = dataToExport.filter(resource => resource.type === typeFilter);
+      }
+      
+      // Apply status filter
+      if (statusFilter !== 'ALL') {
+        dataToExport = dataToExport.filter(resource => resource.status === statusFilter);
+      }
+      
+      // Generate CSV and download
+      const csvContent = convertToCSV(dataToExport);
+      const fileName = hasFilters ? `resources_filtered_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv` : `resources_all_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
+      
+      downloadCSV(csvContent, fileName);
+      
+      setToast({ 
+        type: 'success', 
+        message: `Exported ${dataToExport.length} resource${dataToExport.length !== 1 ? 's' : ''} successfully!` 
+      });
     } catch {
       setToast({ type: 'error', message: 'Failed to export resources' });
     } finally {
@@ -183,8 +333,8 @@ const AdminResources = () => {
     }
   };
 
-  // Handle import
-  const handleImport = async () => {
+  // Handle import confirmation after preview
+  const confirmImport = async () => {
     if (!importFile) {
       setToast({ type: 'error', message: 'Please select a file to import' });
       return;
@@ -195,7 +345,9 @@ const AdminResources = () => {
       const response = await resourceApi.importResources(importFile);
       setToast({ type: 'success', message: response.data?.message || 'Import successful!' });
       setShowImportModal(false);
+      setShowPreviewModal(false);
       setImportFile(null);
+      setPreviewData([]);
       fetchResources();
     } catch {
       setToast({ type: 'error', message: 'Failed to import resources' });
@@ -252,6 +404,16 @@ const AdminResources = () => {
     setCurrentPage(1);
   };
 
+  // Get export button text based on filters
+  const getExportButtonText = () => {
+    if (exporting) return 'Exporting...';
+    if (hasFilters) {
+      
+      return `Export Filtered (${filteredResources.length})`;
+    }
+    return `Export All (${resources.length})`;
+  };
+
   return (
     <Layout title="Resource Management">
       <div className="max-w-7xl mx-auto">
@@ -277,11 +439,11 @@ const AdminResources = () => {
             </button>
             <button
               onClick={handleExport}
-              disabled={exporting}
+              disabled={exporting || resources.length === 0}
               className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm font-medium"
             >
               {exporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-              {exporting ? 'Exporting...' : 'Export CSV'}
+              {getExportButtonText()}
             </button>
             <button
               onClick={() => setShowImportModal(true)}
@@ -296,7 +458,6 @@ const AdminResources = () => {
         {/* Search and Filters */}
         <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-4 mb-6">
           <div className="grid gap-4 md:grid-cols-3">
-            {/* Search */}
             <div className="relative">
               <Search size={16} className="absolute left-3 top-2.5 text-zinc-400" />
               <input
@@ -310,8 +471,6 @@ const AdminResources = () => {
                 className="w-full pl-10 pr-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 dark:bg-zinc-800 dark:text-zinc-100 text-sm"
               />
             </div>
-
-            {/* Type Filter */}
             <select
               value={typeFilter}
               onChange={(e) => {
@@ -326,8 +485,6 @@ const AdminResources = () => {
               <option value="ROOM">Meeting Rooms</option>
               <option value="EQUIPMENT">Equipment</option>
             </select>
-
-            {/* Status Filter */}
             <select
               value={statusFilter}
               onChange={(e) => {
@@ -349,46 +506,22 @@ const AdminResources = () => {
             <table className="w-full">
               <thead className="bg-zinc-50 dark:bg-zinc-800/50 border-b border-zinc-200 dark:border-zinc-800">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    Type
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    Capacity
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    Location
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    Hours
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Capacity</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Location</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Hours</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
                 {loading ? (
-                  <tr>
-                    <td colSpan="7" className="p-0">
-                      <TableSkeleton />
-                    </td>
-                  </tr>
+                  <tr><td colSpan="7" className="p-0"><TableSkeleton /></td></tr>
                 ) : paginatedResources.length === 0 ? (
-                  <tr>
-                    <td colSpan="7" className="px-6 py-12">
-                      <EmptyState 
-                        hasFilters={hasFilters}
-                        onClearFilters={clearFilters}
-                        onAddResource={() => navigate('/admin/resources/new')}
-                      />
-                    </td>
-                  </tr>
+                  <tr><td colSpan="7" className="px-6 py-12">
+                    <EmptyState hasFilters={hasFilters} onClearFilters={clearFilters} onAddResource={() => navigate('/admin/resources/new')} />
+                  </td></tr>
                 ) : (
                   <AnimatePresence mode="wait">
                     {paginatedResources.map((resource, index) => {
@@ -398,82 +531,29 @@ const AdminResources = () => {
                       const isToggling = togglingStatus === resource.id;
                       
                       return (
-                        <Motion.tr
-                          key={resource.id}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, x: -20 }}
-                          transition={{ delay: index * 0.03, duration: 0.2 }}
-                          className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors"
-                        >
+                        <Motion.tr key={resource.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ delay: index * 0.03, duration: 0.2 }} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <div className={`inline-flex rounded-lg p-1.5 ${typeConfig.bg}`}>
                                 <TypeIcon size={14} className={typeConfig.textColor} />
                               </div>
-                              <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                                {resource.name}
-                              </div>
+                              <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{resource.name}</div>
                             </div>
                           </td>
+                          <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm text-zinc-600 dark:text-zinc-400">{typeConfig.label}</div></td>
+                          <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm text-zinc-600 dark:text-zinc-400">{resource.capacity || 'N/A'}{resource.capacity && ' people'}</div></td>
+                          <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm text-zinc-600 dark:text-zinc-400">{resource.location}</div></td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                              {typeConfig.label}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                              {resource.capacity || 'N/A'}
-                              {resource.capacity && ' people'}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                              {resource.location}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {/* Status Toggle Button - Direct update without edit form */}
-                            <button
-                              onClick={() => handleStatusToggle(resource.id, resource.status)}
-                              disabled={isToggling}
-                              className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded-full transition-all ${
-                                resource.status === 'ACTIVE' 
-                                  ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20' 
-                                  : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20'
-                              } disabled:opacity-50 disabled:cursor-not-allowed`}
-                            >
-                              {isToggling ? (
-                                <Loader2 size={12} className="animate-spin" />
-                              ) : resource.status === 'ACTIVE' ? (
-                                <Power size={12} />
-                              ) : (
-                                <PowerOff size={12} />
-                              )}
+                            <button onClick={() => handleStatusToggle(resource.id, resource.status)} disabled={isToggling} className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded-full transition-all ${resource.status === 'ACTIVE' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20'} disabled:opacity-50 disabled:cursor-not-allowed`}>
+                              {isToggling ? <Loader2 size={12} className="animate-spin" /> : resource.status === 'ACTIVE' ? <Power size={12} /> : <PowerOff size={12} />}
                               <span>{statusConfig.text}</span>
                             </button>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-zinc-600 dark:text-zinc-400">
-                              {resource.availabilityStart} - {resource.availabilityEnd}
-                            </div>
-                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm text-zinc-600 dark:text-zinc-400">{resource.availabilityStart} - {resource.availabilityEnd}</div></td>
                           <td className="px-6 py-4 whitespace-nowrap text-right">
                             <div className="flex justify-end gap-2">
-                              <button
-                                onClick={() => navigate(`/admin/resources/${resource.id}/edit`)}
-                                className="p-1.5 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
-                                title="Edit"
-                              >
-                                <Edit size={16} />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteClick(resource.id)}
-                                className="p-1.5 text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors"
-                                title="Delete"
-                              >
-                                <Trash2 size={16} />
-                              </button>
+                              <button onClick={() => navigate(`/admin/resources/${resource.id}/edit`)} className="p-1.5 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Edit"><Edit size={16} /></button>
+                              <button onClick={() => handleDeleteClick(resource.id)} className="p-1.5 text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-colors" title="Delete"><Trash2 size={16} /></button>
                             </div>
                           </td>
                         </Motion.tr>
@@ -485,31 +565,14 @@ const AdminResources = () => {
             </table>
           </div>
           
-          {/* Table Footer with Pagination */}
           {!loading && filteredResources.length > 0 && (
             <div className="px-6 py-3 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-zinc-600 dark:text-zinc-400">
-                  Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredResources.length)} of {filteredResources.length} resources
-                </span>
+                <span className="text-zinc-600 dark:text-zinc-400">Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, filteredResources.length)} of {filteredResources.length} resources</span>
                 <div className="flex gap-2">
-                  <button
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    disabled={currentPage === 1}
-                    className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                  <span className="px-3 py-1 text-zinc-600 dark:text-zinc-400">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <button
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
-                    className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
+                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"><ChevronLeft size={16} /></button>
+                  <span className="px-3 py-1 text-zinc-600 dark:text-zinc-400">Page {currentPage} of {totalPages}</span>
+                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-1.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors"><ChevronRight size={16} /></button>
                 </div>
               </div>
             </div>
@@ -517,81 +580,104 @@ const AdminResources = () => {
         </div>
       </div>
 
-      {/* Import Modal */}
+      {/* Import Modal - File Selection */}
       <AnimatePresence>
-        {showImportModal && (
-          <Motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            onClick={() => {
-              setShowImportModal(false);
-              setImportFile(null);
-            }}
-          >
-            <Motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl max-w-md w-full"
-              onClick={(e) => e.stopPropagation()}
-            >
+        {showImportModal && !showPreviewModal && (
+          <Motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { setShowImportModal(false); setImportFile(null); }}>
+            <Motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-800">
-                <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-                  Import Resources from CSV
-                </h2>
-                <button
-                  onClick={() => {
-                    setShowImportModal(false);
-                    setImportFile(null);
-                  }}
-                  className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"
-                >
-                  <X size={20} />
-                </button>
+                <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Import Resources from CSV</h2>
+                <button onClick={() => { setShowImportModal(false); setImportFile(null); }} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"><X size={20} /></button>
               </div>
-
               <div className="p-6">
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                  Select CSV File
-                </label>
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={(e) => setImportFile(e.target.files[0])}
-                  className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 dark:bg-zinc-800 dark:text-zinc-100 text-sm"
-                />
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Select CSV File</label>
+                <input type="file" accept=".csv" onChange={(e) => handleFileSelect(e.target.files[0])} className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 dark:bg-zinc-800 dark:text-zinc-100 text-sm" />
                 <div className="mt-3 p-3 bg-violet-50 dark:bg-violet-500/10 rounded-lg">
-                  <p className="text-xs text-violet-700 dark:text-violet-400">
-                    <strong>CSV Format:</strong> name, type, capacity, location, status, availabilityStart, availabilityEnd, description
-                  </p>
+                  <p className="text-xs text-violet-700 dark:text-violet-400"><strong>CSV Format:</strong> name, type, capacity, location, status, availabilityStart, availabilityEnd, description</p>
                 </div>
               </div>
-
               <div className="flex gap-3 p-6 pt-0">
-                <button
-                  onClick={handleImport}
-                  disabled={!importFile || importing}
-                  className="flex-1 bg-amber-600 text-white py-2 px-4 rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-                >
-                  {importing ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <Loader2 size={16} className="animate-spin" />
-                      Importing...
-                    </div>
-                  ) : (
-                    'Import'
-                  )}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowImportModal(false);
-                    setImportFile(null);
-                  }}
-                  className="flex-1 bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 py-2 px-4 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors font-medium"
-                >
+                <button onClick={() => { setShowImportModal(false); setImportFile(null); }} className="flex-1 bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 py-2 px-4 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors font-medium">Cancel</button>
+              </div>
+            </Motion.div>
+          </Motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Import Preview Modal */}
+      <AnimatePresence>
+        {showPreviewModal && (
+          <Motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-auto">
+            <Motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-6 border-b border-zinc-200 dark:border-zinc-800">
+                <div>
+                  <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Preview CSV Data</h2>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-1">
+                    {previewData.length} rows previewed
+                  </p>
+                </div>
+                <button onClick={() => { setShowPreviewModal(false); setImportFile(null); setPreviewData([]); }} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors"><X size={20} /></button>
+              </div>
+              
+              <div className="flex-1 overflow-auto p-6">
+                {previewData.length === 0 ? (
+                  <div className="text-center py-12 text-zinc-500 dark:text-zinc-400">
+                    No data to preview. Please check your CSV file format.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-zinc-50 dark:bg-zinc-800/50 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">#</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">Name</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">Type</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">Capacity</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">Location</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-zinc-500 dark:text-zinc-400">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                        {previewData.map((row, idx) => (
+                          <tr key={idx} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+                            <td className="px-3 py-2 text-zinc-500 dark:text-zinc-400">{row.rowNumber}</td>
+                            <td className="px-3 py-2 font-medium text-zinc-900 dark:text-zinc-100">{row.name || '-'}</td>
+                            <td className="px-3 py-2">
+                              <span className={`px-1.5 py-0.5 text-xs rounded ${
+                                row.type === 'HALL' ? 'bg-violet-100 text-violet-700' : 
+                                row.type === 'LAB' ? 'bg-indigo-100 text-indigo-700' : 
+                                row.type === 'ROOM' ? 'bg-blue-100 text-blue-700' : 
+                                row.type === 'EQUIPMENT' ? 'bg-amber-100 text-amber-700' : 
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {row.type || '-'}
+                              </span>
+                            </td>
+                            <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400">{row.capacity || '-'}</td>
+                            <td className="px-3 py-2 text-zinc-600 dark:text-zinc-400">{row.location || '-'}</td>
+                            <td className="px-3 py-2">
+                              <span className={`px-1.5 py-0.5 text-xs rounded ${
+                                row.status === 'ACTIVE' ? 'bg-emerald-100 text-emerald-700' : 
+                                row.status === 'OUT_OF_SERVICE' ? 'bg-rose-100 text-rose-700' : 
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {row.status || '-'}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              
+              <div className="flex gap-3 p-6 pt-0 border-t border-zinc-200 dark:border-zinc-800">
+                <button onClick={() => { setShowPreviewModal(false); setImportFile(null); setPreviewData([]); }} className="flex-1 bg-zinc-200 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 py-2 px-4 rounded-lg hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-colors font-medium">
                   Cancel
+                </button>
+                <button onClick={confirmImport} disabled={importing || previewData.length === 0} className="flex-1 bg-amber-600 text-white py-2 px-4 rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium">
+                  {importing ? <div className="flex items-center justify-center gap-2"><Loader2 size={16} className="animate-spin" />Importing...</div> : 'Confirm Import'}
                 </button>
               </div>
             </Motion.div>
@@ -600,16 +686,7 @@ const AdminResources = () => {
       </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
-      <ConfirmModal
-        open={!!deleteTarget}
-        onClose={cancelDelete}
-        onConfirm={confirmDelete}
-        title="Delete Resource"
-        message="Are you sure you want to delete this resource? This action cannot be undone."
-        confirmLabel={deleting ? 'Deleting...' : 'Delete'}
-        confirmVariant="danger"
-        loading={deleting}
-      />
+      <ConfirmModal open={!!deleteTarget} onClose={cancelDelete} onConfirm={confirmDelete} title="Delete Resource" message="Are you sure you want to delete this resource? This action cannot be undone." confirmLabel={deleting ? 'Deleting...' : 'Delete'} confirmVariant="danger" loading={deleting} />
 
       {/* Toast Notifications */}
       <Toast toast={toast} onClose={() => setToast(null)} />

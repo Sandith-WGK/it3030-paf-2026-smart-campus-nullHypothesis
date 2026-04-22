@@ -26,4 +26,7 @@ public interface NotificationRepository extends MongoRepository<Notification, St
 
     // Delete all notifications for a user (Physical delete if ever needed)
     void deleteByUserId(String userId);
+
+    // Maintenance: Delete notifications older than a specific date (Auto-Clean)
+    void deleteByCreatedAtBefore(java.time.Instant date);
 }

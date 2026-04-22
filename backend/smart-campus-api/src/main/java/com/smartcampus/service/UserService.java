@@ -22,14 +22,17 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
     private final NotificationService notificationService;
+    private final UserActivityService userActivityService;
 
     @Autowired
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, 
-                       EmailService emailService, NotificationService notificationService) {
+                       EmailService emailService, NotificationService notificationService,
+                       UserActivityService userActivityService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
         this.notificationService = notificationService;
+        this.userActivityService = userActivityService;
     }
 
     public List<User> getAllUsers() {
@@ -41,21 +44,29 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
     }
 
-    public User createUser(String email, String name, Role role) {
+    public User createUser(String email, String name, Role role, String password) {
         // Prevent duplicates
         if (userRepository.existsByEmail(email)) {
              throw new RuntimeException("User already exists with email: " + email);
         }
 
-        // Stub user without passport/password since we use Google OAuth
-        User user = User.builder()
+        User.UserBuilder builder = User.builder()
                 .email(email)
                 .name(name)
                 .role(role != null ? role : Role.USER)
-                .provider("GOOGLE")
-                .createdAt(Instant.now())
-                .build();
-        return userRepository.save(user);
+                .createdAt(Instant.now());
+
+        if (password != null && !password.isBlank()) {
+            // Admin is creating a LOCAL user with a password
+            builder.provider("LOCAL")
+                   .password(passwordEncoder.encode(password))
+                   .enabled(true); // Admin-created users skip email verification
+        } else {
+            // Stub user for Google OAuth flow
+            builder.provider("GOOGLE");
+        }
+
+        return userRepository.save(builder.build());
     }
 
     public User updateUser(String id, String email, String name, Role role, String password, String picture, boolean requireEmailReverification) {
@@ -63,6 +74,7 @@ public class UserService {
         if (userOpt.isPresent()) {
             User user = userOpt.get();
             boolean isLocalProvider = "LOCAL".equalsIgnoreCase(user.getProvider());
+            Role oldRole = user.getRole();
             
             // Re-verification logic if email changes
             if (StringUtils.hasText(email) && !email.equalsIgnoreCase(user.getEmail())) {
@@ -110,6 +122,7 @@ public class UserService {
             // Handle Profile Picture
             if (StringUtils.hasText(picture)) {
                 user.setPicture(picture);
+                user.setHasCustomAvatar(true);
             }
             
             // Handle Password Update
@@ -123,10 +136,43 @@ public class UserService {
             // Security Notification Trigger
             boolean emailChanged = StringUtils.hasText(email) && !email.equalsIgnoreCase(user.getEmail());
             boolean passwordChanged = StringUtils.hasText(password);
+            boolean roleChanged = role != null && role != oldRole;
 
             User savedUser = userRepository.save(user);
 
+            if (roleChanged) {
+                // Notify User of role change
+                notificationService.sendNotification(
+                    user.getId(),
+                    String.format("Security: Your account access level has been updated to %S.", role),
+                    NotifType.SECURITY_UPDATE,
+                    Severity.ALERT,
+                    id,
+                    "USER"
+                );
+
+                // If promoted to Admin, notify other admins for audit
+                if (role == Role.ADMIN) {
+                    List<User> admins = userRepository.findByRole(Role.ADMIN);
+                    for (User admin : admins) {
+                        if (!admin.getId().equals(id)) {
+                            notificationService.sendNotification(
+                                admin.getId(),
+                                String.format("Audit: %s has been promoted to ADMINISTRATOR role.", user.getName()),
+                                NotifType.SECURITY_UPDATE,
+                                Severity.ALERT,
+                                id,
+                                "USER"
+                            );
+                        }
+                    }
+                }
+            }
+
             if (emailChanged || passwordChanged) {
+                // Tier 2: Log security update
+                userActivityService.logActivity(user.getId(), "SECURITY_UPDATE");
+
                 if (requireEmailReverification) {
                     // SELF UPDATE -> Notify Admins
                     List<User> admins = userRepository.findByRole(Role.ADMIN);
@@ -156,6 +202,52 @@ public class UserService {
             return savedUser;
         }
         throw new RuntimeException("User not found with id: " + id);
+    }
+
+    public User updateUserPreferences(String identifier, com.smartcampus.dto.UserPreferenceUpdateRequest request) {
+        // Find the primary record being updated
+        User primaryUser = userRepository.findById(identifier)
+                .orElseGet(() -> userRepository.findByEmail(identifier).orElse(null));
+
+        if (primaryUser == null) {
+            throw new RuntimeException("User not found: " + identifier);
+        }
+
+        // Find ALL records sharing the same email to ensure global synchronization
+        String email = primaryUser.getEmail();
+        List<User> linkedUsers = (email != null) ? userRepository.findAllByEmail(email) : List.of(primaryUser);
+        
+        User savedPrimary = null;
+        for (User u : linkedUsers) {
+            com.smartcampus.model.UserPreference prefs = u.getPreferences();
+            if (prefs == null) {
+                prefs = new com.smartcampus.model.UserPreference();
+            }
+
+            if (request.getTheme() != null) prefs.setTheme(request.getTheme());
+            if (request.getEnableSounds() != null) prefs.setEnableSounds(request.getEnableSounds());
+            if (request.getEnableEmailNotifications() != null) prefs.setEnableEmailNotifications(request.getEnableEmailNotifications());
+            if (request.getEnablePushNotifications() != null) prefs.setEnablePushNotifications(request.getEnablePushNotifications());
+
+            u.setPreferences(prefs);
+            User saved = userRepository.save(u);
+            if (u.getId().equals(primaryUser.getId())) {
+                savedPrimary = saved;
+            }
+        }
+
+        return savedPrimary != null ? savedPrimary : primaryUser;
+    }
+
+    public User updateNotificationPreferences(String userId, com.smartcampus.model.NotificationPreference prefs) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+        user.setNotificationPreferences(prefs);
+        return userRepository.save(user);
+    }
+
+    public List<com.smartcampus.model.UserActivity> getUserActivity(String userId) {
+        return userActivityService.getUserActivity(userId);
     }
 
     public void deleteUser(String id) {

@@ -35,6 +35,12 @@ const bookingService = {
   // GET /bookings/resource-schedule?resourceId=...&date=...
   getResourceSchedule: (resourceId, date) =>
     api.get(`${BASE}/resource-schedule`, { params: { resourceId, date } }),
+
+  // GET /bookings/analytics  (admin only)
+  getBookingAnalytics: () => api.get(`${BASE}/analytics`),
+
+  // GET /bookings/:id/verify  (QR code check-in verification)
+  verifyBooking: (id) => api.get(`${BASE}/${id}/verify`),
 };
 
 export default bookingService;

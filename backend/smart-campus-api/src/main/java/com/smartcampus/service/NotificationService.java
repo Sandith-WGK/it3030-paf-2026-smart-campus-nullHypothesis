@@ -12,13 +12,17 @@ import com.smartcampus.model.Severity;
 import com.smartcampus.model.User;
 import com.smartcampus.repository.NotificationRepository;
 import com.smartcampus.repository.UserRepository;
+import com.smartcampus.event.EmailNotificationEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
-
 import java.util.List;
 import java.util.stream.Collectors;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import org.springframework.scheduling.annotation.Scheduled;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +32,7 @@ public class NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Generic method to trigger a notification from any service.
@@ -40,8 +45,26 @@ public class NotificationService {
         if (user != null && user.getNotificationPreferences() != null) {
             boolean enabled = true;
             if (referenceType != null) {
-                if (referenceType.equals("BOOKING")) enabled = user.getNotificationPreferences().isBookings();
-                if (referenceType.equals("TICKET")) enabled = user.getNotificationPreferences().isTickets();
+                switch (referenceType.toUpperCase()) {
+                    case "BOOKING":
+                        enabled = user.getNotificationPreferences().isBookings();
+                        break;
+                    case "TICKET":
+                        enabled = user.getNotificationPreferences().isTickets();
+                        break;
+                    case "USER":
+                    case "SECURITY":
+                        enabled = user.getNotificationPreferences().isSecurity();
+                        break;
+                    case "RESOURCE":
+                        enabled = user.getNotificationPreferences().isResources();
+                        break;
+                    case "ANNOUNCEMENT":
+                        enabled = user.getNotificationPreferences().isAnnouncements();
+                        break;
+                    default:
+                        enabled = true;
+                }
             }
             if (!enabled) {
                 log.info("Notification suppressed by user preferences for user {}", userId);
@@ -81,6 +104,13 @@ public class NotificationService {
             log.info("WebSocket: Notification pushed for user {} (Direct + Broadcast)", userId);
         } catch (Exception e) {
             log.error("WebSocket: Failed to push notification {}: {}", saved.getId(), e.getMessage());
+        }
+
+        // --- Async Delivery: Dual-Channel (Email) ---
+        if (user != null && user.getEmail() != null) {
+            String subject = type.toString().replace("_", " ");
+            log.info("Notification: Publishing Async Email Event to {} (type: {})", user.getEmail(), type);
+            eventPublisher.publishEvent(new EmailNotificationEvent(this, user, subject, message));
         }
     }
 
@@ -168,5 +198,21 @@ public class NotificationService {
      */
     public long getUnreadCount(String userId) {
         return notificationRepository.countByUserIdAndIsReadFalseAndIsArchivedFalse(userId);
+    }
+
+    /**
+     * Automated Maintenance Task: Cleans up notifications older than 30 days.
+     * Runs every 24 hours at midnight.
+     */
+    @Scheduled(cron = "0 0 0 * * *")
+    public void cleanupOldNotifications() {
+        Instant thirtyDaysAgo = Instant.now().minus(30, ChronoUnit.DAYS);
+        log.info("System: Starting Automated Notification Cleanup Task...");
+        try {
+            notificationRepository.deleteByCreatedAtBefore(thirtyDaysAgo);
+            log.info("System: Successfully cleaned up notifications older than 30 days.");
+        } catch (Exception e) {
+            log.error("System: Automated Cleanup failed: {}", e.getMessage());
+        }
     }
 }

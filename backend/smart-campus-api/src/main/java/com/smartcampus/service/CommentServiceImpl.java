@@ -13,6 +13,12 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import com.smartcampus.model.Ticket;
+import com.smartcampus.model.User;
+import com.smartcampus.model.Role;
+import com.smartcampus.model.NotifType;
+import com.smartcampus.model.Severity;
+import com.smartcampus.repository.UserRepository;
 
 @Service
 @RequiredArgsConstructor
@@ -20,12 +26,13 @@ public class CommentServiceImpl implements CommentService {
 
     private final CommentRepository commentRepository;
     private final TicketRepository ticketRepository;
+    private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     @Override
     public CommentResponse addComment(String ticketId, CommentCreateRequest request, String authorId) {
-        if (!ticketRepository.existsById(ticketId)) {
-            throw new TicketNotFoundException(ticketId);
-        }
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new TicketNotFoundException(ticketId));
 
         Comment comment = Comment.builder()
                 .ticketId(ticketId)
@@ -33,7 +40,49 @@ public class CommentServiceImpl implements CommentService {
                 .content(request.getContent())
                 .build();
 
-        return mapToResponse(commentRepository.save(comment));
+        Comment savedComment = commentRepository.save(comment);
+
+        // Notify the relevant party
+        User author = userRepository.findById(authorId).orElse(null);
+        String authorName = (author != null) ? author.getName() : "A user";
+
+        if (!authorId.equals(ticket.getReporterId())) {
+            // Admin/Technician commented -> Notify Reporter
+            notificationService.sendNotification(
+                ticket.getReporterId(),
+                String.format("%s replied to your ticket regarding %s.", authorName, ticket.getCategory()),
+                NotifType.COMMENT_ADDED,
+                Severity.INFO,
+                ticket.getId(),
+                "TICKET"
+            );
+        } else {
+            // Reporter commented -> Notify Assignee or Admins
+            if (ticket.getAssigneeId() != null) {
+                notificationService.sendNotification(
+                    ticket.getAssigneeId(),
+                    String.format("%s added a comment to their ticket regarding %s.", authorName, ticket.getCategory()),
+                    NotifType.COMMENT_ADDED,
+                    Severity.INFO,
+                    ticket.getId(),
+                    "TICKET"
+                );
+            } else {
+                List<User> admins = userRepository.findByRole(Role.ADMIN);
+                for (User admin : admins) {
+                    notificationService.sendNotification(
+                        admin.getId(),
+                        String.format("%s commented on an unassigned ticket regarding %s.", authorName, ticket.getCategory()),
+                        NotifType.COMMENT_ADDED,
+                        Severity.INFO,
+                        ticket.getId(),
+                        "TICKET"
+                    );
+                }
+            }
+        }
+
+        return mapToResponse(savedComment);
     }
 
     @Override

@@ -597,7 +597,7 @@ class BookingServiceTest {
     class ResourceSchedule {
 
         @Test
-        @DisplayName("returns APPROVED and PENDING bookings for a resource on a date")
+        @DisplayName("returns APPROVED and own PENDING bookings; anonymises other users' PENDING bookings")
         void returnsApprovedAndPendingBookings() {
             Booking approved = Booking.builder()
                     .id("booking-001")
@@ -616,7 +616,8 @@ class BookingServiceTest {
                     .thenReturn(List.of());
             when(userRepository.findAllById(List.of(USER_ID))).thenReturn(List.of(testUser));
 
-            List<BookingResponse> schedule = bookingService.getResourceSchedule("res-001", FUTURE_DATE);
+            // Task 7: pass requestingUserId as third argument
+            List<BookingResponse> schedule = bookingService.getResourceSchedule("res-001", FUTURE_DATE, USER_ID);
 
             assertThat(schedule).hasSize(1);
             assertThat(schedule.get(0).getResourceName()).isEqualTo("Meeting Room A");

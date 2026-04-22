@@ -81,4 +81,10 @@ public interface BookingRepository extends MongoRepository<Booking, String> {
             LocalTime newStart,
             LocalTime newEnd
     );
+
+    /**
+     * Find all future active bookings for a resource — used for impact notifications.
+     */
+    List<Booking> findByResourceIdAndStatusInAndDateGreaterThanEqual(
+            String resourceId, List<BookingStatus> statuses, LocalDate date);
 }

@@ -1,14 +1,25 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/useTheme';
 // eslint-disable-next-line no-unused-vars
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, User as UserIcon, Settings, ChevronDown, Bell, Moon, Sun, BellRing } from 'lucide-react';
+import { 
+  LogOut, 
+  User as UserIcon, 
+  Settings as SettingsIcon, 
+  ChevronDown, 
+  Bell, 
+  Moon, 
+  Sun,
+  BellRing
+} from 'lucide-react';
 import { useNotifications } from '../hooks/useNotifications';
 import NotificationPanel from './notifications/NotificationPanel';
 
 const Navbar = ({ leftSlot = null }) => {
   const { user, token, logout } = useAuth();
+  const { toggleTheme, resolvedTheme } = useTheme();
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -61,6 +72,14 @@ const Navbar = ({ leftSlot = null }) => {
       </div>
 
       <div className="flex items-center gap-6">
+        {/* Toggle Theme */}
+        <button 
+          onClick={toggleTheme}
+          className="p-2 rounded-xl bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-all border border-transparent hover:border-violet-200 dark:hover:border-violet-800 shadow-sm"
+          title={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} mode`}
+        >
+          {resolvedTheme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
+        </button>
         {/* Notifications */}
         <div className="relative" ref={notificationRef}>
           <button 
@@ -103,6 +122,7 @@ const Navbar = ({ leftSlot = null }) => {
               <NotificationPanel 
                 notifications={notifications}
                 onMarkRead={handleMarkRead}
+                onMarkAllRead={markAllAsRead}
                 onDelete={handleDeleteNotif}
                 onDeleteAll={deleteAll}
                 userRole={user?.role}
@@ -127,6 +147,7 @@ const Navbar = ({ leftSlot = null }) => {
               <img 
                 src={user?.picture || `https://ui-avatars.com/api/?name=${user?.name || user?.email}&background=random`} 
                 alt="Avatar" 
+                referrerPolicy="no-referrer"
                 className="w-10 h-10 rounded-full object-cover border-2 border-white dark:border-zinc-900 shadow-sm"
               />
               <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></div>
@@ -157,10 +178,14 @@ const Navbar = ({ leftSlot = null }) => {
                   My Profile
                 </Link>
 
-                <button className="w-full flex items-center gap-3 px-5 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-all">
-                  <Settings size={18} />
+                <Link 
+                  to="/settings" 
+                  onClick={() => setIsOpen(false)}
+                  className="w-full flex items-center gap-3 px-5 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-all"
+                >
+                  <SettingsIcon size={18} />
                   Settings
-                </button>
+                </Link>
 
                 <div className="my-2 border-t border-zinc-100 dark:border-zinc-800"></div>
 

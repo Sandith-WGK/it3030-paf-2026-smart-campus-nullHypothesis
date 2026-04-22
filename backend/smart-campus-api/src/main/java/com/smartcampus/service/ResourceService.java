@@ -1,5 +1,6 @@
 package com.smartcampus.service;
 
+import com.smartcampus.repository.BookingRepository;
 import com.smartcampus.exception.ResourceNotFoundException;
 import com.smartcampus.model.Resource;
 import com.smartcampus.model.ResourceStatus;
@@ -9,8 +10,17 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import com.smartcampus.model.Booking;
+import com.smartcampus.model.BookingStatus;
+import com.smartcampus.model.NotifType;
+import com.smartcampus.model.Severity;
+import java.time.LocalDate;
+
 import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Service layer for Resource management (Module A - Facilities & Assets Catalogue).
@@ -22,6 +32,8 @@ import java.util.List;
 public class ResourceService {
 
     private final ResourceRepository resourceRepository;
+    private final BookingRepository bookingRepository;
+    private final NotificationService notificationService;
 
     /**
      * Get all resources with optional filters
@@ -80,9 +92,21 @@ public class ResourceService {
      * Create a new resource with validation
      * @param resource Resource object to create
      * @return Created resource object
-     * @throws IllegalArgumentException if validation fails
+     * @throws IllegalArgumentException if validation fails or duplicate name
      */
     public Resource createResource(Resource resource) {
+        // Trim name first
+        if (resource.getName() != null) {
+            resource.setName(resource.getName().trim());
+        }
+        
+        // ✅ UNIQUE NAME VALIDATION - Check if name already exists
+        if (resourceRepository.existsByName(resource.getName())) {
+            throw new IllegalArgumentException(
+                "Resource with name '" + resource.getName() + "' already exists. Please use a different name."
+            );
+        }
+        
         validateResource(resource);
         
         // Set default availability times if not provided
@@ -108,15 +132,32 @@ public class ResourceService {
      * @param updatedResource Updated resource object
      * @return Updated resource object
      * @throws ResourceNotFoundException if resource not found
-     * @throws IllegalArgumentException if validation fails
+     * @throws IllegalArgumentException if validation fails or duplicate name
      */
     public Resource updateResource(String id, Resource updatedResource) {
         Resource existingResource = getResourceById(id);
+
+        // Trim name if present
+        if (updatedResource.getName() != null) {
+            updatedResource.setName(updatedResource.getName().trim());
+        }
+
+        // ✅ UNIQUE NAME VALIDATION - Check if name is taken by another resource
+        // First check if the name has actually changed
+        if (!existingResource.getName().equals(updatedResource.getName())) {
+            // Only check uniqueness if name is being changed
+            if (resourceRepository.existsByName(updatedResource.getName())) {
+                throw new IllegalArgumentException(
+                    "Resource with name '" + updatedResource.getName() + "' already exists. Please use a different name."
+                );
+            }
+        }
 
         // Validate the updated resource
         validateResource(updatedResource);
 
         // Update fields
+        ResourceStatus oldStatus = existingResource.getStatus();
         existingResource.setName(updatedResource.getName());
         existingResource.setType(updatedResource.getType());
         existingResource.setCapacity(updatedResource.getCapacity());
@@ -126,8 +167,15 @@ public class ResourceService {
         existingResource.setAvailabilityEnd(updatedResource.getAvailabilityEnd());
         existingResource.setDescription(updatedResource.getDescription());
 
+        Resource saved = resourceRepository.save(existingResource);
+        
+        // Notify if status changed away from ACTIVE
+        if (oldStatus == ResourceStatus.ACTIVE && saved.getStatus() != ResourceStatus.ACTIVE) {
+            notifyAffectedUsers(saved);
+        }
+
         log.info("Updating resource: {}", id);
-        return resourceRepository.save(existingResource);
+        return saved;
     }
 
     /**
@@ -139,9 +187,36 @@ public class ResourceService {
      */
     public Resource updateResourceStatus(String id, ResourceStatus status) {
         Resource resource = getResourceById(id);
+        ResourceStatus oldStatus = resource.getStatus();
         resource.setStatus(status);
+        
+        Resource saved = resourceRepository.save(resource);
+        
+        // Notify if status changed away from ACTIVE
+        if (oldStatus == ResourceStatus.ACTIVE && status != ResourceStatus.ACTIVE) {
+            notifyAffectedUsers(saved);
+        }
+        
         log.info("Updating resource status: {} -> {}", id, status);
-        return resourceRepository.save(resource);
+        return saved;
+    }
+
+    private void notifyAffectedUsers(Resource resource) {
+        List<BookingStatus> activeStatuses = List.of(BookingStatus.APPROVED, BookingStatus.PENDING);
+        List<Booking> affectedBookings = bookingRepository.findByResourceIdAndStatusInAndDateGreaterThanEqual(
+                resource.getId(), activeStatuses, LocalDate.now());
+
+        for (Booking booking : affectedBookings) {
+            notificationService.sendNotification(
+                    booking.getUserId(),
+                    String.format("Urgent: %s is now %s. Your booking on %s may be affected. Please check your dashboard.",
+                            resource.getName(), resource.getStatus(), booking.getDate()),
+                    NotifType.RESOURCE_UPDATE,
+                    Severity.ALERT,
+                    resource.getId(),
+                    "RESOURCE"
+            );
+        }
     }
 
     /**

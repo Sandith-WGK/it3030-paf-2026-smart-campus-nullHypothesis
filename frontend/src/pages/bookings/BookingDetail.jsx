@@ -13,7 +13,9 @@ import {
   Trash2,
   FileDown,
   RefreshCw,
+  QrCode,
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import Layout from '../../components/layout/Layout';
 import BookingStatusBadge from '../../components/booking/BookingStatusBadge';
 import BookingTimeline from '../../components/booking/BookingTimeline';
@@ -182,6 +184,38 @@ export default function BookingDetail() {
                 highlightId={booking.id}
                 slotBooked={false}
               />
+            </div>
+          )}
+
+          {/* QR Code for Check-In (only for APPROVED bookings) */}
+          {booking.status === 'APPROVED' && (
+            <div className="px-6 pb-5 border-t border-zinc-100 dark:border-zinc-800 pt-5">
+              <div className="flex items-center gap-2 mb-3">
+                <QrCode size={16} className="text-violet-500" />
+                <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                  Check-In QR Code
+                </p>
+              </div>
+              <div className="flex flex-col sm:flex-row items-center gap-4">
+                <div className="bg-white p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm">
+                  <QRCodeSVG
+                    value={`${window.location.origin}/verify-booking/${booking.id}`}
+                    size={160}
+                    level="H"
+                    includeMargin={false}
+                    bgColor="#ffffff"
+                    fgColor="#18181b"
+                  />
+                </div>
+                <div className="text-center sm:text-left">
+                  <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    Scan to verify this booking
+                  </p>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1 max-w-[220px]">
+                    Present this QR code at the venue entrance for quick check-in on the day of your booking.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
 

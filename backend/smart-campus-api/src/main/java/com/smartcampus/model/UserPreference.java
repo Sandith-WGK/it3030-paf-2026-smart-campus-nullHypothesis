@@ -9,15 +9,17 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class NotificationPreference {
+public class UserPreference {
+
     @Builder.Default
-    private boolean bookings = true;
+    private Theme theme = Theme.SYSTEM;
+
     @Builder.Default
-    private boolean tickets = true;
+    private boolean enableSounds = true;
+
     @Builder.Default
-    private boolean security = true;
+    private boolean enableEmailNotifications = true;
+
     @Builder.Default
-    private boolean announcements = true;
-    @Builder.Default
-    private boolean resources = true;
+    private boolean enablePushNotifications = true;
 }

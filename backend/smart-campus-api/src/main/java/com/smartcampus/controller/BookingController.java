@@ -1,6 +1,7 @@
 package com.smartcampus.controller;
 
 import com.smartcampus.dto.ApiResponse;
+import com.smartcampus.dto.booking.BookingAnalyticsResponse;
 import com.smartcampus.dto.booking.BookingRejectRequest;
 import com.smartcampus.dto.booking.BookingRequest;
 import com.smartcampus.dto.booking.BookingResponse;
@@ -82,9 +83,11 @@ public class BookingController {
     @GetMapping("/resource-schedule")
     public ResponseEntity<ApiResponse<List<BookingResponse>>> getResourceSchedule(
             @RequestParam String resourceId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @AuthenticationPrincipal UserPrincipal principal) {
 
-        List<BookingResponse> bookings = bookingService.getResourceSchedule(resourceId, date);
+        // Task 7: pass requesting user id so the service can anonymise other users' PENDING bookings
+        List<BookingResponse> bookings = bookingService.getResourceSchedule(resourceId, date, principal.getId());
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.maxAge(30, TimeUnit.SECONDS))
                 .body(ApiResponse.success("Resource schedule retrieved", bookings));
@@ -191,5 +194,26 @@ public class BookingController {
 
         bookingService.deleteBooking(id, principal.getId(), isAdmin);
         return ResponseEntity.noContent().build();
+    }
+
+    // ── GET /api/v1/bookings/analytics ─────────────────────────────────────────
+    // Admin-only: returns aggregated booking analytics used by the dashboard panel.
+
+    @GetMapping("/analytics")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<BookingAnalyticsResponse>> getBookingAnalytics() {
+        BookingAnalyticsResponse analytics = bookingService.getBookingAnalytics();
+        return ResponseEntity.ok(ApiResponse.success("Analytics retrieved successfully", analytics));
+    }
+
+    // ── GET /api/v1/bookings/{id}/verify ─────────────────────────────────────
+    // QR code check-in verification endpoint.
+    // Validates that the booking exists, is APPROVED, and matches today's date.
+    // Returns resource details, booker name, and time slot for physical verification.
+
+    @GetMapping("/{id}/verify")
+    public ResponseEntity<ApiResponse<BookingResponse>> verifyBooking(@PathVariable String id) {
+        BookingResponse response = bookingService.verifyBookingForCheckIn(id);
+        return ResponseEntity.ok(ApiResponse.success("Booking verified successfully", response));
     }
 }

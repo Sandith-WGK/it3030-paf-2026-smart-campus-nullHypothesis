@@ -1,4 +1,4 @@
-import Swal from 'sweetalert2';
+import Swal from 'sweetalert2/dist/sweetalert2.all.js';
 
 /**
  * Custom SweetAlert2 configuration that matches the Smart Campus theme.

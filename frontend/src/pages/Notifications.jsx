@@ -6,7 +6,7 @@ import {
   Bell, Search, Filter, Calendar, CheckSquare, 
   Trash2, Shield, CalendarDays, Hammer, Bookmark,
   ChevronRight, AlertCircle, CheckCircle2, Info,
-  Archive, Clock
+  Archive, Clock, Building2
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns/formatDistanceToNow';
 import Layout from '../components/layout/Layout';
@@ -28,6 +28,7 @@ const TypeIcon = ({ type }) => {
   if (type === 'SECURITY_UPDATE') return <Shield size={16} className="text-rose-500" />;
   if (type.startsWith('BOOKING')) return <CalendarDays size={16} className="text-zinc-400" />;
   if (type.startsWith('TICKET')) return <Hammer size={16} className="text-zinc-400" />;
+  if (type === 'RESOURCE_UPDATE') return <Building2 size={16} className="text-zinc-400" />;
   return <Bookmark size={16} className="text-zinc-400" />;
 };
 
@@ -79,7 +80,9 @@ export default function Notifications() {
     
     const matchesType = filterType === 'ALL' || 
                         (filterType === 'SECURITY' && n.type === 'SECURITY_UPDATE') ||
-                        (filterType === 'BOOKING' && n.type.startsWith('BOOKING'));
+                        (filterType === 'BOOKING' && n.type.startsWith('BOOKING')) ||
+                        (filterType === 'TICKET' && n.type.startsWith('TICKET')) ||
+                        (filterType === 'RESOURCE' && (n.type === 'RESOURCE_UPDATE' || n.referenceType === 'RESOURCE'));
     
     const matchesStatus = filterStatus === 'ALL' ||
                           (filterStatus === 'UNREAD' && !n.isRead) ||
@@ -94,8 +97,11 @@ export default function Notifications() {
     if (notif.referenceType === 'BOOKING') {
       if (notif.type === 'BOOKING_CREATED' && user?.role === 'ADMIN') navigate('/admin/bookings');
       else navigate(`/bookings/${notif.referenceId}`);
-    } else if (notif.referenceType === 'RESOURCE') {
+    } else if (notif.referenceType === 'RESOURCE' || notif.type === 'RESOURCE_UPDATE') {
       navigate(`/resources/${notif.referenceId}`);
+    } else if (notif.referenceType === 'TICKET' || (notif.type && notif.type.startsWith('TICKET'))) {
+      if (notif.type === 'TICKET_CREATED' && user?.role === 'ADMIN') navigate('/admin/tickets');
+      else navigate(`/tickets/${notif.referenceId}`);
     } else if (notif.type === 'SECURITY_UPDATE') {
       if (user?.role === 'ADMIN') navigate('/admin/users');
       else navigate('/profile');
@@ -155,7 +161,7 @@ export default function Notifications() {
 
           <div className="flex flex-wrap items-center gap-3">
              <div className="flex items-center gap-1.5 p-1 bg-zinc-100 dark:bg-zinc-800 rounded-xl">
-                {['ALL', 'SECURITY', 'BOOKING'].map(type => (
+                {['ALL', 'SECURITY', 'BOOKING', 'TICKET', 'RESOURCE'].map(type => (
                   <button
                     key={type}
                     onClick={() => setFilterType(type)}

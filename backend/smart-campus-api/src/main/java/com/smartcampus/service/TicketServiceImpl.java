@@ -16,12 +16,19 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
+import com.smartcampus.service.NotificationService;
+import com.smartcampus.repository.UserRepository;
+import com.smartcampus.model.User;
+import com.smartcampus.model.Role;
+import com.smartcampus.model.NotifType;
+import com.smartcampus.model.Severity;
 
 @Service
 @RequiredArgsConstructor
 public class TicketServiceImpl implements TicketService {
 
     private final TicketRepository ticketRepository;
+    private final UserRepository userRepository;
     private final AttachmentService attachmentService;
     
     private synchronized String generateTicketCode() {
@@ -41,6 +48,7 @@ public class TicketServiceImpl implements TicketService {
                 .orElse("T001");
     }
 
+    private final NotificationService notificationService;
 
     @Override
     public TicketResponse createTicket(TicketCreateRequest request, String reporterId) {
@@ -54,7 +62,36 @@ public class TicketServiceImpl implements TicketService {
                 .reporterId(reporterId)
                 .status(TicketStatus.OPEN)
                 .build();
-        return mapToResponse(ticketRepository.save(ticket));
+        Ticket saved = ticketRepository.save(ticket);
+        
+        // Notify the reporter
+        notificationService.sendNotification(
+            reporterId,
+            "Your maintenance ticket has been created and is awaiting review.",
+            NotifType.TICKET_UPDATED,
+            Severity.INFO,
+            saved.getId(),
+            "TICKET"
+        );
+
+        // Notify all admins about the new ticket
+        List<User> admins = userRepository.findByRole(Role.ADMIN);
+        User reporter = userRepository.findById(reporterId).orElse(null);
+        String reporterName = (reporter != null) ? reporter.getName() : "A user";
+        
+        for (User admin : admins) {
+            notificationService.sendNotification(
+                admin.getId(),
+                String.format("New Maintenance Ticket: %s has reported an issue regarding %s.", 
+                              reporterName, saved.getCategory()),
+                NotifType.TICKET_CREATED,
+                Severity.INFO,
+                saved.getId(),
+                "TICKET"
+            );
+        }
+
+        return mapToResponse(saved);
     }
 
     @Override
@@ -130,14 +167,42 @@ public class TicketServiceImpl implements TicketService {
             }
         }
 
-        return mapToResponse(ticketRepository.save(ticket));
+        Ticket saved = ticketRepository.save(ticket);
+
+        // Notify the reporter about status change
+        com.smartcampus.model.Severity severity = com.smartcampus.model.Severity.INFO;
+        if (newStatus == TicketStatus.RESOLVED) severity = com.smartcampus.model.Severity.SUCCESS;
+        if (newStatus == TicketStatus.REJECTED) severity = com.smartcampus.model.Severity.ALERT;
+
+        notificationService.sendNotification(
+                saved.getReporterId(),
+                String.format("Ticket Status Update: Your ticket #%s has been marked as %s.", saved.getId(), newStatus),
+                com.smartcampus.model.NotifType.TICKET_UPDATED,
+                severity,
+                saved.getId(),
+                "TICKET"
+        );
+
+        return mapToResponse(saved);
     }
 
     @Override
     public TicketResponse assignTechnician(String ticketId, String technicianId) {
         Ticket ticket = getTicketEntity(ticketId);
         ticket.setAssigneeId(technicianId);
-        return mapToResponse(ticketRepository.save(ticket));
+        Ticket saved = ticketRepository.save(ticket);
+
+        // Notify the technician
+        notificationService.sendNotification(
+                technicianId,
+                String.format("New Ticket Assignment: You have been assigned to ticket #%s.", saved.getId()),
+                com.smartcampus.model.NotifType.TICKET_ASSIGNED,
+                com.smartcampus.model.Severity.INFO,
+                saved.getId(),
+                "TICKET"
+        );
+
+        return mapToResponse(saved);
     }
 
     @Override

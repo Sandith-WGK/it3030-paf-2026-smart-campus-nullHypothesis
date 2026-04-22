@@ -12,6 +12,7 @@ import ResetPassword from './pages/ResetPassword';
 import Profile from './pages/Profile';
 import VerifyEmail from './pages/VerifyEmail';
 import VerifyTwoFactor from './pages/VerifyTwoFactor';
+import Settings from './pages/Settings';
 import Notifications from './pages/Notifications';
 
 // Booking pages
@@ -19,6 +20,7 @@ import MyBookings from './pages/bookings/MyBookings';
 import NewBooking from './pages/bookings/NewBooking';
 import EditBooking from './pages/bookings/EditBooking';
 import BookingDetail from './pages/bookings/BookingDetail';
+import VerifyBooking from './pages/bookings/VerifyBooking';
 import AdminBookings from './pages/admin/AdminBookings';
 
 // Resource pages 
@@ -120,10 +122,12 @@ function App() {
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/verify-2fa" element={<VerifyTwoFactor />} />
+      <Route path="/verify-booking/:id" element={<VerifyBooking />} />
       
       {/* Protected routes (USER) */}
       <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
       <Route path="/profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+      <Route path="/settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
       <Route path="/notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />
 
       {/* Booking routes (USER + ADMIN) */}
