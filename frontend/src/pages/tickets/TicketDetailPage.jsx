@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clock, MessageSquare, Paperclip, Trash2, Edit2 } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
@@ -24,13 +24,7 @@ export default function TicketDetailPage() {
   const [newComment, setNewComment] = useState('');
   const [commentLoading, setCommentLoading] = useState(false);
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      loadData();
-    }
-  }, [id, isAuthenticated]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [ticketRes, commentsRes] = await Promise.all([
@@ -46,7 +40,13 @@ export default function TicketDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadData();
+    }
+  }, [isAuthenticated, loadData]);
 
   const handleCreateComment = async (e) => {
     e.preventDefault();

@@ -239,6 +239,13 @@ public class UserService {
         return savedPrimary != null ? savedPrimary : primaryUser;
     }
 
+    public User updateNotificationPreferences(String userId, com.smartcampus.model.NotificationPreference prefs) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found: " + userId));
+        user.setNotificationPreferences(prefs);
+        return userRepository.save(user);
+    }
+
     public List<com.smartcampus.model.UserActivity> getUserActivity(String userId) {
         return userActivityService.getUserActivity(userId);
     }

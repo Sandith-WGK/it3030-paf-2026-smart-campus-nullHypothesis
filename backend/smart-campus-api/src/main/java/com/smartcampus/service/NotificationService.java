@@ -45,8 +45,26 @@ public class NotificationService {
         if (user != null && user.getNotificationPreferences() != null) {
             boolean enabled = true;
             if (referenceType != null) {
-                if (referenceType.equals("BOOKING")) enabled = user.getNotificationPreferences().isBookings();
-                if (referenceType.equals("TICKET")) enabled = user.getNotificationPreferences().isTickets();
+                switch (referenceType.toUpperCase()) {
+                    case "BOOKING":
+                        enabled = user.getNotificationPreferences().isBookings();
+                        break;
+                    case "TICKET":
+                        enabled = user.getNotificationPreferences().isTickets();
+                        break;
+                    case "USER":
+                    case "SECURITY":
+                        enabled = user.getNotificationPreferences().isSecurity();
+                        break;
+                    case "RESOURCE":
+                        enabled = user.getNotificationPreferences().isResources();
+                        break;
+                    case "ANNOUNCEMENT":
+                        enabled = user.getNotificationPreferences().isAnnouncements();
+                        break;
+                    default:
+                        enabled = true;
+                }
             }
             if (!enabled) {
                 log.info("Notification suppressed by user preferences for user {}", userId);
