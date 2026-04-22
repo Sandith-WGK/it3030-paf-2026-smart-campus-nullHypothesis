@@ -7,6 +7,7 @@ import com.smartcampus.model.ResourceType;
 import com.smartcampus.service.ResourceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -21,12 +22,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * REST controller for Resource Management (Module A - Facilities & Assets Catalogue).
  * Provides CRUD operations and filtering for campus resources.
  */
+@Slf4j
 @RestController
 @RequestMapping("/api/v1/resources")
 @RequiredArgsConstructor
@@ -104,13 +108,28 @@ public class ResourceController {
 
     /**
      * DELETE /api/v1/resources/{id}
-     * Delete a resource
+     * Delete a resource - Checks for active bookings before deletion
      * Admin only
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteResource(@PathVariable String id) {
-        resourceService.deleteResource(id);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<?> deleteResource(@PathVariable String id) {
+        try {
+            resourceService.deleteResource(id);
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            log.warn("Delete blocked: {}", e.getMessage());
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", e.getMessage());
+            errorResponse.put("code", "ACTIVE_BOOKINGS_EXIST");
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+        } catch (Exception e) {
+            log.error("Error deleting resource: {}", e.getMessage());
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("message", "Failed to delete resource: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
     }
 }
