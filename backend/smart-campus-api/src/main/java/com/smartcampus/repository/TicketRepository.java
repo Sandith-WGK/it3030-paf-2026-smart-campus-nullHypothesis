@@ -29,4 +29,7 @@ public interface TicketRepository extends MongoRepository<Ticket, String> {
 
     // Filter by status AND priority
     List<Ticket> findByStatusAndPriority(TicketStatus status, Priority priority);
+
+    // Find the latest ticket by code for sequential id generation
+    java.util.Optional<Ticket> findFirstByOrderByTicketCodeDesc();
 }

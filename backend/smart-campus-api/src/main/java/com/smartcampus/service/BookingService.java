@@ -13,17 +13,16 @@ import com.smartcampus.model.*;
 import com.smartcampus.repository.BookingRepository;
 import com.smartcampus.repository.ResourceRepository;
 import com.smartcampus.repository.UserRepository;
-import com.smartcampus.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -47,6 +46,7 @@ public class BookingService {
 
         validateResourceAvailability(resource);
         validateTimeRange(request.getStartTime(), request.getEndTime());
+        validateNotPastDate(request.getDate());
         validateWithinAvailabilityWindow(resource, request.getStartTime(), request.getEndTime());
         validateCapacity(resource, request.getExpectedAttendees());
         checkForDuplicateBooking(request.getResourceId(), userId, request.getDate(), request.getStartTime(), request.getEndTime(), null);
@@ -166,6 +166,7 @@ public class BookingService {
         }
 
         validateTimeRange(request.getStartTime(), request.getEndTime());
+        validateNotPastDate(request.getDate());
 
         Resource resource = resourceRepository.findById(booking.getResourceId())
                 .orElseThrow(() -> new ResourceNotFoundException("Resource", "id", booking.getResourceId()));
@@ -217,6 +218,28 @@ public class BookingService {
                 booking.getId(),
                 "BOOKING"
         );
+
+        // Auto-reject overlapping PENDING requests
+        List<Booking> overlappingPending = bookingRepository.findOverlappingPendingBookings(
+                booking.getResourceId(), booking.getDate(), booking.getStartTime(), booking.getEndTime());
+
+        for (Booking pending : overlappingPending) {
+            if (!pending.getId().equals(booking.getId())) {
+                pending.setStatus(BookingStatus.REJECTED);
+                pending.setRejectionReason("Time slot has been filled by another approved request.");
+                bookingRepository.save(pending);
+
+                notificationService.sendNotification(
+                        pending.getUserId(),
+                        String.format("Your booking for %s on %s was rejected: %s",
+                                resourceName, pending.getDate(), pending.getRejectionReason()),
+                        NotifType.BOOKING_REJECTED,
+                        Severity.ALERT,
+                        pending.getId(),
+                        "BOOKING"
+                );
+            }
+        }
 
         User user = userRepository.findById(booking.getUserId()).orElse(null);
         return BookingResponse.from(saved, resource, user);
@@ -489,8 +512,13 @@ public class BookingService {
      * Validates that the booking exists, is APPROVED, and its date is today.
      * Returns full booking details so the person scanning can verify identity.
      */
-    public BookingResponse verifyBookingForCheckIn(String bookingId) {
-        Booking booking = findBookingOrThrow(bookingId);
+    public BookingResponse verifyBookingForCheckIn(String id, String requestingUserId, boolean isAdmin) {
+        Booking booking = bookingRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Booking", "id", id));
+
+        if (!isAdmin && !booking.getUserId().equals(requestingUserId)) {
+            throw new UnauthorizedAccessException("You do not have permission to verify this booking.");
+        }
 
         if (booking.getStatus() != BookingStatus.APPROVED) {
             throw new InvalidBookingStateException(
@@ -498,7 +526,7 @@ public class BookingService {
                             booking.getStatus()));
         }
 
-        LocalDate today = LocalDate.now();
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Colombo"));
         if (!booking.getDate().equals(today)) {
             throw new InvalidBookingStateException(
                     String.format("This booking is for %s, but today is %s. Check-in is only allowed on the booking date.",
@@ -527,6 +555,18 @@ public class BookingService {
     private void validateTimeRange(LocalTime startTime, LocalTime endTime) {
         if (!startTime.isBefore(endTime)) {
             throw new InvalidBookingStateException("Start time must be before end time");
+        }
+    }
+
+    /**
+     * Rejects bookings with a date in the past (server-side guard).
+     * The DTO has @FutureOrPresent but that relies on timezone; this is an explicit check
+     * using the Sri Lanka timezone (IST, Asia/Colombo) to match the QR verify logic.
+     */
+    private void validateNotPastDate(LocalDate date) {
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Colombo"));
+        if (date.isBefore(today)) {
+            throw new InvalidBookingStateException("Cannot book a date in the past");
         }
     }
 
@@ -608,9 +648,13 @@ public class BookingService {
     }
 
     private <T> List<T> paginate(List<T> list, int page, int size) {
-        if (size <= 0) return list;
+        if (page < 0) page = 0;
+        if (size <= 0) size = 20;
+        if (size > 100) size = 100;
+        
         int from = page * size;
         if (from >= list.size()) return List.of();
+        
         int to = Math.min(from + size, list.size());
         return list.subList(from, to);
     }

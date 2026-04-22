@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import {
   CalendarDays,
@@ -10,7 +10,6 @@ import {
   ChevronRight,
   CheckSquare,
   Square,
-  Loader2,
   BarChart3,
 } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
@@ -24,6 +23,23 @@ import { SkeletonGrid } from '../../components/common/Skeleton';
 import bookingService from '../../services/api/bookingService';
 import BookingAnalyticsPanel from '../../components/booking/BookingAnalyticsPanel';
 
+const PAGE_SIZE = 20;
+const BUSINESS_TIMEZONE = 'Asia/Colombo';
+
+function todayInTimezone(timeZone) {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const year = parts.find((p) => p.type === 'year')?.value;
+  const month = parts.find((p) => p.type === 'month')?.value;
+  const day = parts.find((p) => p.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+}
+
 // Pending bookings always surface first, then sort by date descending
 function sortBookings(list) {
   return [...list].sort((a, b) => {
@@ -35,11 +51,14 @@ function sortBookings(list) {
 
 export default function AdminBookings() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({});
   const [toast, setToast] = useState(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
 
   // Single reject/approve
   const [rejectTarget, setRejectTarget] = useState(null);
@@ -51,6 +70,7 @@ export default function AdminBookings() {
   const [selected, setSelected] = useState(new Set());
   const [bulkApproveOpen, setBulkApproveOpen] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const headerCheckboxRef = useRef(null);
 
   // IDs being animated out after an action
   const [removingIds, setRemovingIds] = useState(new Set());
@@ -59,18 +79,35 @@ export default function AdminBookings() {
     setLoading(true);
     setSelected(new Set());
     bookingService
-      .getAllBookings(filters)
+      .getAllBookings({ ...filters, page, size: PAGE_SIZE })
       .then((res) => {
         const raw = res.data?.data ?? res.data;
-        setBookings(Array.isArray(raw) ? sortBookings(raw) : []);
+        const list = Array.isArray(raw) ? raw : [];
+        setBookings(sortBookings(list));
+        // Backend currently returns a plain list; infer next page availability.
+        setHasMore(list.length === PAGE_SIZE);
       })
-      .catch(() => setToast({ type: 'error', message: 'Failed to load bookings' }))
+      .catch(() => {
+        setToast({ type: 'error', message: 'Failed to load bookings' });
+        setHasMore(false);
+      })
       .finally(() => setLoading(false));
-  }, [filters]);
+  }, [filters, page]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    // Keep only IDs that are still visible and pending on the current page.
+    const visiblePendingIds = new Set(
+      bookings.filter((b) => b.status === 'PENDING').map((b) => b.id),
+    );
+    setSelected((prev) => {
+      const next = new Set([...prev].filter((id) => visiblePendingIds.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [bookings]);
 
   // ── Animate a booking row out then reload ─────────────────────────────────────
   const animateAndReload = (ids) => {
@@ -115,23 +152,56 @@ export default function AdminBookings() {
   // ── Bulk approve ──────────────────────────────────────────────────────────────
   const handleBulkApprove = async () => {
     setBulkLoading(true);
-    const ids = [...selected];
+    const ids = selectedPendingIds;
+    if (ids.length === 0) {
+      setBulkLoading(false);
+      setBulkApproveOpen(false);
+      return;
+    }
     try {
-      await Promise.all(ids.map((id) => bookingService.approveBooking(id)));
-      setToast({ type: 'success', message: `${ids.length} booking${ids.length > 1 ? 's' : ''} approved` });
+      const results = await Promise.allSettled(ids.map((id) => bookingService.approveBooking(id)));
+      const succeeded = results.filter((r) => r.status === 'fulfilled').length;
+      const failed    = results.filter((r) => r.status === 'rejected');
+
+      if (failed.length === 0) {
+        setToast({ type: 'success', message: `${succeeded} booking${succeeded > 1 ? 's' : ''} approved` });
+      } else if (succeeded > 0) {
+        const reasons = failed.map((r) => r.reason?.response?.data?.message).filter(Boolean).join('; ');
+        setToast({
+          type: 'error',
+          message: `${succeeded} approved, ${failed.length} failed${reasons ? ': ' + reasons : ' (conflicts or errors)'}`,
+        });
+      } else {
+        const reasons = failed.map((r) => r.reason?.response?.data?.message).filter(Boolean).join('; ');
+        setToast({ type: 'error', message: `All ${failed.length} approvals failed${reasons ? ': ' + reasons : ''}` });
+      }
+
       setBulkApproveOpen(false);
       animateAndReload(ids);
-    } catch {
-      setToast({ type: 'error', message: 'Some bookings could not be approved' });
     } finally {
       setBulkLoading(false);
     }
   };
 
   // ── Selection helpers ─────────────────────────────────────────────────────────
-  const pendingBookings = bookings.filter((b) => b.status === 'PENDING');
+  const actionableBookings = bookings.filter((b) => b.status === 'PENDING');
+  const selectedPendingIds = actionableBookings.filter((b) => selected.has(b.id)).map((b) => b.id);
+  const selectedPendingCount = selectedPendingIds.length;
+  const selectedTotalCount = selected.size;
   const allPendingSelected =
-    pendingBookings.length > 0 && pendingBookings.every((b) => selected.has(b.id));
+    actionableBookings.length > 0 && selectedPendingCount === actionableBookings.length;
+  const hasIndeterminateSelection = selectedPendingCount > 0 && !allPendingSelected;
+
+  useEffect(() => {
+    if (headerCheckboxRef.current) {
+      headerCheckboxRef.current.indeterminate = hasIndeterminateSelection;
+    }
+  }, [hasIndeterminateSelection]);
+
+  const tableScopeLabel = useMemo(
+    () => `Current page scope: ${bookings.length} booking(s), max ${PAGE_SIZE} per page.`,
+    [bookings.length],
+  );
 
   const toggleSelect = (id) => {
     setSelected((prev) => {
@@ -145,14 +215,14 @@ export default function AdminBookings() {
     if (allPendingSelected) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(pendingBookings.map((b) => b.id)));
+      setSelected(new Set(actionableBookings.map((b) => b.id)));
     }
   };
 
   // ── Stats ─────────────────────────────────────────────────────────────────────
   const pendingCount = bookings.filter((b) => b.status === 'PENDING').length;
   const approvedCount = bookings.filter((b) => b.status === 'APPROVED').length;
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayInTimezone(BUSINESS_TIMEZONE);
   const todayCount = bookings.filter((b) => b.date === today).length;
 
   return (
@@ -163,6 +233,9 @@ export default function AdminBookings() {
           <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Manage Bookings</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
             Review, approve or reject booking requests
+          </p>
+          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
+            Showing page {page + 1} (up to {PAGE_SIZE} bookings per page)
           </p>
         </div>
         <button
@@ -229,12 +302,18 @@ export default function AdminBookings() {
 
       {/* Filters */}
       <div className="mb-5">
-        <BookingFilters filters={filters} onChange={setFilters} />
+        <BookingFilters
+          filters={filters}
+          onChange={(nextFilters) => {
+            setFilters(nextFilters);
+            setPage(0);
+          }}
+        />
       </div>
 
       {/* Bulk approve toolbar */}
       <AnimatePresence>
-        {selected.size > 0 && (
+        {selectedPendingCount > 0 && (
           <Motion.div
             initial={{ opacity: 0, y: -8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -242,7 +321,8 @@ export default function AdminBookings() {
             className="flex items-center justify-between rounded-xl border border-violet-200 dark:border-violet-500/30 bg-violet-50 dark:bg-violet-500/10 px-4 py-3 mb-4"
           >
             <p className="text-sm font-medium text-violet-800 dark:text-violet-200">
-              {selected.size} booking{selected.size > 1 ? 's' : ''} selected
+              Selected on current page: {selectedTotalCount} total, {selectedPendingCount}{' '}
+              actionable pending
             </p>
             <div className="flex items-center gap-3">
               <button
@@ -262,23 +342,6 @@ export default function AdminBookings() {
         )}
       </AnimatePresence>
 
-      {/* Select-all pending row */}
-      {!loading && pendingBookings.length > 1 && (
-        <div className="flex items-center gap-2 mb-3 px-1">
-          <button
-            onClick={toggleSelectAll}
-            className="flex items-center gap-2 text-xs font-medium text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors"
-          >
-            {allPendingSelected ? (
-              <CheckSquare size={15} className="text-violet-600" />
-            ) : (
-              <Square size={15} />
-            )}
-            {allPendingSelected ? 'Deselect all pending' : `Select all ${pendingBookings.length} pending`}
-          </button>
-        </div>
-      )}
-
       {/* Booking list */}
       {loading ? (
         <SkeletonGrid />
@@ -289,105 +352,160 @@ export default function AdminBookings() {
           message="Try changing the filters or check back later."
         />
       ) : (
-        <div className="space-y-3">
-          <AnimatePresence>
-            {bookings.map((b) => {
-              const isRemoving = removingIds.has(b.id);
-              const isPending = b.status === 'PENDING';
-              const isSelected = selected.has(b.id);
+        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">{tableScopeLabel}</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Bulk approve eligibility: pending bookings only.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-zinc-50 dark:bg-zinc-800/60">
+                <tr className="text-left text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  <th className="px-4 py-3 w-12">
+                    <input
+                      ref={headerCheckboxRef}
+                      type="checkbox"
+                      checked={allPendingSelected}
+                      onChange={toggleSelectAll}
+                      disabled={actionableBookings.length === 0}
+                      aria-label="Select all pending bookings on current page"
+                      className="h-4 w-4 rounded border-zinc-300 text-violet-600 focus:ring-violet-500 disabled:opacity-50"
+                    />
+                  </th>
+                  <th className="px-4 py-3">Resource</th>
+                  <th className="px-4 py-3">Requested By</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Time</th>
+                  <th className="px-4 py-3">Attendees</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <AnimatePresence initial={false}>
+                  {bookings.map((b) => {
+                    const isRemoving = removingIds.has(b.id);
+                    const isPending = b.status === 'PENDING';
+                    const isSelected = selected.has(b.id);
+                    const rowClasses = isSelected
+                      ? 'bg-violet-50/70 dark:bg-violet-500/10'
+                      : 'bg-white dark:bg-zinc-900';
 
-              return (
-                <Motion.div
-                  key={b.id}
-                  layout
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={isRemoving ? { opacity: 0, x: 40, height: 0 } : { opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, x: 40, height: 0 }}
-                  transition={{ duration: 0.28 }}
-                  className={`rounded-xl border bg-white dark:bg-zinc-900 p-4 flex flex-col sm:flex-row sm:items-center gap-4 transition-colors ${
-                    isSelected
-                      ? 'border-violet-300 dark:border-violet-500/50'
-                      : 'border-zinc-200 dark:border-zinc-800'
-                  }`}
-                >
-                  {/* Checkbox (pending only) */}
-                  {isPending && (
-                    <button
-                      onClick={() => toggleSelect(b.id)}
-                      className="shrink-0 text-zinc-400 hover:text-violet-600 transition-colors"
-                    >
-                      {isSelected ? (
-                        <CheckSquare size={18} className="text-violet-600" />
-                      ) : (
-                        <Square size={18} />
-                      )}
-                    </button>
-                  )}
+                    return (
+                      <Motion.tr
+                        key={b.id}
+                        layout
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={isRemoving ? { opacity: 0, x: 24 } : { opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, x: 24 }}
+                        transition={{ duration: 0.2 }}
+                        className={`${rowClasses} border-t border-zinc-100 dark:border-zinc-800`}
+                      >
+                        <td className="px-4 py-3 align-top">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelect(b.id)}
+                            disabled={!isPending}
+                            aria-label={`Select booking ${b.id}`}
+                            title={!isPending ? 'Only pending bookings are actionable for bulk approve' : 'Select booking'}
+                            className="h-4 w-4 rounded border-zinc-300 text-violet-600 focus:ring-violet-500 disabled:opacity-40"
+                          />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">{b.resourceName}</p>
+                            {b.rejectionReason && b.status === 'REJECTED' && (
+                              <p className="mt-1 text-xs text-red-500 dark:text-red-400">{b.rejectionReason}</p>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">{b.userName}</td>
+                        <td className="px-4 py-3">
+                          <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-300">
+                            <CalendarDays size={12} /> {b.date}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-300">
+                            <Clock size={12} /> {b.startTime} – {b.endTime}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">
+                          {b.expectedAttendees ? (
+                            <span className="flex items-center gap-1">
+                              <Users size={12} /> {b.expectedAttendees}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <BookingStatusBadge status={b.status} />
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-end gap-2">
+                            {isPending && (
+                              <>
+                                <button
+                                  onClick={() => setApproveTarget(b)}
+                                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg text-green-700 bg-green-50 hover:bg-green-100 dark:text-green-300 dark:bg-green-500/10 dark:hover:bg-green-500/20 transition-colors"
+                                >
+                                  <CheckCircle2 size={13} /> Approve
+                                </button>
+                                <button
+                                  onClick={() => setRejectTarget(b)}
+                                  className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-500/10 dark:hover:bg-red-500/20 transition-colors"
+                                >
+                                  <XCircle size={13} /> Reject
+                                </button>
+                              </>
+                            )}
+                            <button
+                              onClick={() => navigate(`/bookings/${b.id}`, { state: { from: location.pathname + location.search } })}
+                              className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                              title="View details"
+                            >
+                              <ChevronRight size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </Motion.tr>
+                    );
+                  })}
+                </AnimatePresence>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="font-semibold text-sm text-zinc-900 dark:text-zinc-100 truncate">
-                        {b.resourceName}
-                      </p>
-                      <BookingStatusBadge status={b.status} />
-                    </div>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
-                      Requested by{' '}
-                      <span className="font-medium text-zinc-700 dark:text-zinc-300">
-                        {b.userName}
-                      </span>
-                    </p>
-                    <div className="flex flex-wrap gap-4 text-xs text-zinc-500 dark:text-zinc-400">
-                      <span className="flex items-center gap-1">
-                        <CalendarDays size={11} /> {b.date}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Clock size={11} /> {b.startTime} – {b.endTime}
-                      </span>
-                      {b.expectedAttendees && (
-                        <span className="flex items-center gap-1">
-                          <Users size={11} /> {b.expectedAttendees}
-                        </span>
-                      )}
-                    </div>
-                    {b.status === 'REJECTED' && b.rejectionReason && (
-                      <p className="mt-2 text-xs text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded px-2 py-1 inline-block">
-                        {b.rejectionReason}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    {isPending && (
-                      <>
-                        <button
-                          onClick={() => setApproveTarget(b)}
-                          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg text-green-700 bg-green-50 hover:bg-green-100 dark:text-green-300 dark:bg-green-500/10 dark:hover:bg-green-500/20 transition-colors"
-                        >
-                          <CheckCircle2 size={13} /> Approve
-                        </button>
-                        <button
-                          onClick={() => setRejectTarget(b)}
-                          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-500/10 dark:hover:bg-red-500/20 transition-colors"
-                        >
-                          <XCircle size={13} /> Reject
-                        </button>
-                      </>
-                    )}
-                    <button
-                      onClick={() => navigate(`/bookings/${b.id}`)}
-                      className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-                      title="View details"
-                    >
-                      <ChevronRight size={16} />
-                    </button>
-                  </div>
-                </Motion.div>
-              );
-            })}
-          </AnimatePresence>
+      {/* Pagination controls */}
+      {!loading && bookings.length > 0 && (
+        <div className="mt-5 flex items-center justify-between">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Page {page + 1}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={!hasMore}
+              className="px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              Next
+            </button>
+          </div>
         </div>
       )}
 
@@ -409,8 +527,8 @@ export default function AdminBookings() {
         onClose={() => setBulkApproveOpen(false)}
         onConfirm={handleBulkApprove}
         title="Bulk Approve"
-        message={`Approve all ${selected.size} selected pending bookings?`}
-        confirmLabel={bulkLoading ? 'Approving…' : `Approve ${selected.size}`}
+        message={`Approve ${selectedPendingCount} actionable pending booking(s) selected on this page?`}
+        confirmLabel={bulkLoading ? 'Approving…' : `Approve ${selectedPendingCount}`}
         confirmVariant="primary"
         loading={bulkLoading}
       />

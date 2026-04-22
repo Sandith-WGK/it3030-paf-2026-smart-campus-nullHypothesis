@@ -40,6 +40,12 @@ export default function TicketCard({ ticket }) {
         </span>
       </div>
       
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[11px] font-mono font-bold text-violet-600 bg-violet-100 dark:bg-violet-500/20 dark:text-violet-400 px-2.5 py-0.5 rounded-full inline-flex items-center gap-1 shadow-sm">
+          #{ticket.ticketCode || ticket.id.substring(0, 8)}
+        </span>
+      </div>
+      
       <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-2 line-clamp-1 group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors">
         {ticket.category}
       </h3>

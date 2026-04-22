@@ -1,6 +1,8 @@
 package com.smartcampus.service;
 
 import com.smartcampus.exception.ResourceNotFoundException;
+import com.smartcampus.model.Booking;
+import com.smartcampus.model.BookingStatus;
 import com.smartcampus.model.Resource;
 import com.smartcampus.model.ResourceStatus;
 import com.smartcampus.model.ResourceType;
@@ -16,7 +18,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
-
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
@@ -171,6 +172,7 @@ class ResourceServiceTest {
                     .location("Block C, Level 3")
                     .build();
 
+            when(resourceRepository.existsByName(any())).thenReturn(false);
             when(resourceRepository.save(any(Resource.class))).thenAnswer(inv -> inv.getArgument(0));
 
             Resource result = resourceService.createResource(input);
@@ -212,6 +214,7 @@ class ResourceServiceTest {
         @Test
         @DisplayName("allows EQUIPMENT without capacity")
         void allowsEquipmentWithoutCapacity() {
+            when(resourceRepository.existsByName(any())).thenReturn(false);
             when(resourceRepository.save(any(Resource.class))).thenAnswer(inv -> inv.getArgument(0));
 
             Resource result = resourceService.createResource(sampleEquipment);
@@ -234,6 +237,23 @@ class ResourceServiceTest {
             assertThatThrownBy(() -> resourceService.createResource(input))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Availability start time");
+        }
+        
+        @Test
+        @DisplayName("rejects duplicate name")
+        void rejectsDuplicateName() {
+            Resource input = Resource.builder()
+                    .name("Main Auditorium")
+                    .type(ResourceType.HALL)
+                    .capacity(200)
+                    .location("Block A")
+                    .build();
+            
+            when(resourceRepository.existsByName("Main Auditorium")).thenReturn(true);
+            
+            assertThatThrownBy(() -> resourceService.createResource(input))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("already exists");
         }
     }
 
@@ -277,6 +297,25 @@ class ResourceServiceTest {
             assertThatThrownBy(() -> resourceService.updateResource("bad-id", updateData))
                     .isInstanceOf(ResourceNotFoundException.class);
         }
+        
+        @Test
+        @DisplayName("rejects duplicate name when updating")
+        void rejectsDuplicateNameOnUpdate() {
+            when(resourceRepository.findById("res-001")).thenReturn(Optional.of(sampleHall));
+            when(resourceRepository.existsByName("Main Auditorium (Renovated)")).thenReturn(true);
+            
+            Resource updateData = Resource.builder()
+                    .name("Main Auditorium (Renovated)")
+                    .type(ResourceType.HALL)
+                    .capacity(250)
+                    .location("Block A")
+                    .status(ResourceStatus.ACTIVE)
+                    .build();
+            
+            assertThatThrownBy(() -> resourceService.updateResource("res-001", updateData))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("already exists");
+        }
     }
 
     // ── UPDATE STATUS ───────────────────────────────────────────────────────
@@ -290,7 +329,6 @@ class ResourceServiceTest {
         void setsOutOfService() {
             when(resourceRepository.findById("res-001")).thenReturn(Optional.of(sampleHall));
             when(resourceRepository.save(any(Resource.class))).thenAnswer(inv -> inv.getArgument(0));
-            // Stub to prevent NPE during notification check
             when(bookingRepository.findByResourceIdAndStatusInAndDateGreaterThanEqual(eq("res-001"), anyList(), any(LocalDate.class)))
                     .thenReturn(List.of());
 
@@ -309,9 +347,12 @@ class ResourceServiceTest {
     class DeleteResource {
 
         @Test
-        @DisplayName("deletes existing resource")
+        @DisplayName("deletes existing resource with no active bookings")
         void deletesExisting() {
-            when(resourceRepository.existsById("res-001")).thenReturn(true);
+            when(resourceRepository.findById("res-001")).thenReturn(Optional.of(sampleHall));
+            when(bookingRepository.findByResourceIdAndStatusInAndDateGreaterThanEqual(eq("res-001"), anyList(), any(LocalDate.class)))
+                    .thenReturn(List.of());
+            doNothing().when(resourceRepository).deleteById("res-001");
 
             resourceService.deleteResource("res-001");
 
@@ -319,9 +360,30 @@ class ResourceServiceTest {
         }
 
         @Test
+        @DisplayName("throws IllegalArgumentException when resource has active bookings")
+        void throwsWhenHasActiveBookings() {
+            Booking activeBooking = Booking.builder()
+                    .id("booking-001")
+                    .resourceId("res-001")
+                    .status(BookingStatus.APPROVED)
+                    .date(LocalDate.now().plusDays(1))
+                    .build();
+            
+            when(resourceRepository.findById("res-001")).thenReturn(Optional.of(sampleHall));
+            when(bookingRepository.findByResourceIdAndStatusInAndDateGreaterThanEqual(eq("res-001"), anyList(), any(LocalDate.class)))
+                    .thenReturn(List.of(activeBooking));
+
+            assertThatThrownBy(() -> resourceService.deleteResource("res-001"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Cannot delete resource");
+            
+            verify(resourceRepository, never()).deleteById(any());
+        }
+
+        @Test
         @DisplayName("throws ResourceNotFoundException for nonexistent resource")
         void throwsForNonexistent() {
-            when(resourceRepository.existsById("bad-id")).thenReturn(false);
+            when(resourceRepository.findById("bad-id")).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> resourceService.deleteResource("bad-id"))
                     .isInstanceOf(ResourceNotFoundException.class);

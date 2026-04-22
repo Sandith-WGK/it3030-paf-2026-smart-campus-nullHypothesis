@@ -89,6 +89,18 @@ public class ResourceService {
     }
 
     /**
+     * Check if resource has active bookings (PENDING or APPROVED)
+     * @param resourceId Resource ID to check
+     * @return true if has active bookings, false otherwise
+     */
+    private boolean hasActiveBookings(String resourceId) {
+        List<BookingStatus> activeStatuses = List.of(BookingStatus.PENDING, BookingStatus.APPROVED);
+        List<Booking> activeBookings = bookingRepository.findByResourceIdAndStatusInAndDateGreaterThanEqual(
+                resourceId, activeStatuses, LocalDate.now());
+        return !activeBookings.isEmpty();
+    }
+
+    /**
      * Create a new resource with validation
      * @param resource Resource object to create
      * @return Created resource object
@@ -286,14 +298,15 @@ public class ResourceService {
     }
 
     /**
-     * Delete a resource
+     * Delete a resource - Checks for active bookings before deletion
      * @param id Resource ID
      * @throws ResourceNotFoundException if resource not found
+     * @throws IllegalArgumentException if resource has active bookings
      */
     public void deleteResource(String id) {
         Resource resource = getResourceById(id);
-
-        // ACTIVE BOOKINGS CHECK - Prevent deletion if resource has active bookings
+        
+        // ✅ ACTIVE BOOKINGS CHECK - Prevent deletion if resource has active bookings
         if (hasActiveBookings(id)) {
             throw new IllegalArgumentException(
                 "Cannot delete resource '" + resource.getName() + "' because it has active bookings (PENDING or APPROVED). " +

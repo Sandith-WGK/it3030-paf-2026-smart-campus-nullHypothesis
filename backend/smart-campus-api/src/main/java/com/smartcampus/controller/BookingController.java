@@ -89,7 +89,7 @@ public class BookingController {
         // Task 7: pass requesting user id so the service can anonymise other users' PENDING bookings
         List<BookingResponse> bookings = bookingService.getResourceSchedule(resourceId, date, principal.getId());
         return ResponseEntity.ok()
-                .cacheControl(CacheControl.maxAge(30, TimeUnit.SECONDS))
+                .cacheControl(CacheControl.noStore().cachePrivate())
                 .body(ApiResponse.success("Resource schedule retrieved", bookings));
     }
 
@@ -183,9 +183,11 @@ public class BookingController {
     // ── DELETE /api/v1/bookings/{id} ─────────────────────────────────────────
     // Delete a booking. Users can only delete PENDING or CANCELLED bookings they own.
     // Admins can delete any booking.
+    // Returns 200 with ApiResponse wrapper for consistency with all other endpoints
+    // (satisfies the Uniform Interface REST constraint).
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteBooking(
+    public ResponseEntity<ApiResponse<Void>> deleteBooking(
             @PathVariable String id,
             @AuthenticationPrincipal UserPrincipal principal) {
 
@@ -193,7 +195,7 @@ public class BookingController {
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
         bookingService.deleteBooking(id, principal.getId(), isAdmin);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(ApiResponse.success("Booking deleted successfully", null));
     }
 
     // ── GET /api/v1/bookings/analytics ─────────────────────────────────────────
@@ -212,8 +214,14 @@ public class BookingController {
     // Returns resource details, booker name, and time slot for physical verification.
 
     @GetMapping("/{id}/verify")
-    public ResponseEntity<ApiResponse<BookingResponse>> verifyBooking(@PathVariable String id) {
-        BookingResponse response = bookingService.verifyBookingForCheckIn(id);
+    public ResponseEntity<ApiResponse<BookingResponse>> verifyBooking(
+            @PathVariable String id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        
+        boolean isAdmin = principal.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+                
+        BookingResponse response = bookingService.verifyBookingForCheckIn(id, principal.getId(), isAdmin);
         return ResponseEntity.ok(ApiResponse.success("Booking verified successfully", response));
     }
 }

@@ -12,11 +12,11 @@ export default function BookingFilters({ filters, onChange }) {
 
   useEffect(() => {
     resourceService
-      .getResources({ status: 'ACTIVE' })
+      .getResources()
       .then((res) => {
         const raw = res.data?.data ?? res.data;
         const list = Array.isArray(raw) ? raw : [];
-        setResources(list.filter((r) => r.status === 'ACTIVE'));
+        setResources(list);
       })
       .catch(() => {});
   }, []);
@@ -50,7 +50,7 @@ export default function BookingFilters({ filters, onChange }) {
         <option value="">All Resources</option>
         {resources.map((r) => (
           <option key={r.id} value={r.id}>
-            {r.name}
+            {r.name}{r.status && r.status !== 'ACTIVE' ? ` (${r.status})` : ''}
           </option>
         ))}
       </select>

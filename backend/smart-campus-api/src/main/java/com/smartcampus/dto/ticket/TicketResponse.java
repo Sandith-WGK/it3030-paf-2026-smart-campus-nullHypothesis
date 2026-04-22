@@ -18,6 +18,7 @@ import java.util.List;
 public class TicketResponse {
 
     private String id;
+    private String ticketCode;
     private String resourceId;
     private String reporterId;
     private String assigneeId;
@@ -31,4 +32,5 @@ public class TicketResponse {
     private String rejectionReason;
     private Instant createdAt;
     private Instant resolvedAt;
+    private Instant firstResponseAt;
 }

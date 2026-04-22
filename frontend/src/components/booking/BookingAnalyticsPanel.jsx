@@ -137,7 +137,7 @@ export default function BookingAnalyticsPanel() {
         </div>
         <div className="flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-500">
           <span className="w-2 h-2 rounded-full bg-green-400 inline-block animate-pulse" />
-          Live data — {data.totalBookings} total bookings
+          Latest snapshot — {data.totalBookings} total bookings
         </div>
       </div>
 

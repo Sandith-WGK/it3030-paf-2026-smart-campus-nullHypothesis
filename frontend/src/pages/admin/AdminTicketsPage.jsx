@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Save, X, MessageSquare, Edit2, Trash2, XCircle } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
 import { ticketService } from '../../services/api/ticketService';
-import { commentService } from '../../services/api/commentService'; // Added
-import { getUserId, isAdmin } from '../../utils/auth'; // Added
+import { commentService } from '../../services/api/commentService'; 
+import { getUserId, isAdmin } from '../../utils/auth'; 
 import Toast from '../../components/common/Toast';
 import { SkeletonGrid } from '../../components/common/Skeleton';
 import { showConfirm,  showSuccess, showError } from '../../utils/alerts';
@@ -40,29 +40,24 @@ export default function AdminTicketsPage() {
     loadTechnicians();
   }, [statusFilter, priorityFilter]);
 
-  const loadTickets = async () => {
+  const loadTickets = useCallback(async () => {
     setLoading(true);
     try {
       const res = await ticketService.getAllTickets({ status: statusFilter, priority: priorityFilter });
       const raw = res.data ?? res;
       setTickets(Array.isArray(raw) ? raw : []);
-    } catch  {
+    } catch {
       setToast({ type: 'error', message: 'Failed to fetch tickets' });
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, priorityFilter]);
 
-  const loadTechnicians = async () => {
+  const loadTechnicians = useCallback(async () => {
     try {
-      // Use ticketService.getAllUsers() instead of api.get()
       const res = await ticketService.getAllUsers();
-
-      // Handle different response formats (res.data or res)
       const allUsers = res.data ?? res;
-
       if (Array.isArray(allUsers)) {
-        // Filter for technicians in the frontend
         const filteredTechs = allUsers.filter(u =>
           u.role && u.role.toString().toUpperCase() === 'TECHNICIAN'
         );
@@ -70,9 +65,13 @@ export default function AdminTicketsPage() {
       }
     } catch (err) {
       console.error("Error loading technicians:", err);
-      setToast({ type: 'error', message: 'Could not load technician list' });
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadTickets();
+    loadTechnicians();
+  }, [loadTickets, loadTechnicians]);
 
   // --- COMMENT LOGIC  ---
   const openCommentModal = async (ticket) => {
@@ -148,6 +147,23 @@ export default function AdminTicketsPage() {
     } catch { setToast({ type: 'error', message: 'Failed to reject ticket' }); }
   };
 
+  const handleDeleteTicket = async (ticket) => {
+    const result = await showConfirm(
+      'Delete Ticket?',
+      `This will permanently remove ticket #${ticket.ticketCode || ticket.id.substring(0, 8)}. This action cannot be undone.`
+    );
+
+    if (result.isConfirmed) {
+      try {
+        await ticketService.deleteTicket(ticket.id);
+        showSuccess('Deleted!', 'Ticket has been permanently removed.');
+        loadTickets();
+      } catch {
+        showError('Error', 'Failed to delete ticket. Please try again.');
+      }
+    }
+  };
+
   return (
     <Layout title="Admin Ticketing">
       <div className="mb-10">
@@ -214,7 +230,7 @@ export default function AdminTicketsPage() {
                       </div>
                       <div className="text-xs text-zinc-400 font-mono mt-1 flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600"></span>
-                        #{t.id.substring(0, 8)}
+                         #{t.ticketCode || t.id.substring(0, 8)}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -264,6 +280,14 @@ export default function AdminTicketsPage() {
                             <X size={14} strokeWidth={3} />
                           </button>
                         )}
+
+                        <button 
+                          onClick={() => handleDeleteTicket(t)} 
+                          className="p-2 bg-zinc-50 text-zinc-400 dark:bg-zinc-800/50 dark:text-zinc-500 rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-all shadow-sm" 
+                          title="Delete Ticket"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>
