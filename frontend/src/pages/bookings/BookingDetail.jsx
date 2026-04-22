@@ -64,7 +64,7 @@ export default function BookingDetail() {
       })
       .catch(() => navigate(from))
       .finally(() => setLoading(false));
-  }, [id, navigate]);
+  }, [id, navigate, from]);
 
   const handleCancel = async () => {
     setActionLoading(true);

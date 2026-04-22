@@ -41,7 +41,7 @@ const extractCount = (payload) => {
   return 0;
 };
 
-function SummaryCard({ title, value, subtitle, icon: Icon, tone, loading }) {
+function SummaryCard({ title, value, subtitle, icon, tone, loading }) {
   return (
     <div className={`rounded-2xl border p-5 shadow-sm bg-white dark:bg-zinc-900 ${tone.border}`}>
       <div className="flex items-start justify-between gap-3">
@@ -52,9 +52,7 @@ function SummaryCard({ title, value, subtitle, icon: Icon, tone, loading }) {
           </p>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</p>
         </div>
-        <div className={`rounded-xl p-3 ${tone.bg}`}>
-          <Icon size={20} className={tone.text} />
-        </div>
+        <div className={`rounded-xl p-3 ${tone.bg}`}>{React.createElement(icon, { size: 20, className: tone.text })}</div>
       </div>
     </div>
   );
