@@ -32,6 +32,8 @@ const extractArray = (payload) => {
   return Array.isArray(data) ? data : [];
 };
 
+// eslint-disable-next-line no-unused-vars
+function StatCard({ label, value, icon: StatIcon, color, bg, loading: busy }) {
 const extractCount = (payload) => {
   if (typeof payload === 'number') return payload;
   if (typeof payload?.count === 'number') return payload.count;
