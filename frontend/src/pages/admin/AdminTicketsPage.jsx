@@ -13,6 +13,7 @@ export default function AdminTicketsPage() {
   const navigate = useNavigate();
   const currentUserId = getUserId();
   const [tickets, setTickets] = useState([]);
+  const [technicians, setTechnicians] = useState([]); 
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
 
@@ -36,7 +37,8 @@ export default function AdminTicketsPage() {
 
   useEffect(() => {
     loadTickets();
-  }, [statusFilter, priorityFilter]);
+    loadTechnicians();
+  }, [statusFilter, priorityFilter,loadTickets]);
 
   const loadTickets = async () => {
     setLoading(true);
@@ -48,6 +50,27 @@ export default function AdminTicketsPage() {
       setToast({ type: 'error', message: 'Failed to fetch tickets' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTechnicians = async () => {
+    try {
+      // Use ticketService.getAllUsers() instead of api.get()
+      const res = await ticketService.getAllUsers();
+
+      // Handle different response formats (res.data or res)
+      const allUsers = res.data ?? res;
+
+      if (Array.isArray(allUsers)) {
+        // Filter for technicians in the frontend
+        const filteredTechs = allUsers.filter(u =>
+          u.role && u.role.toString().toUpperCase() === 'TECHNICIAN'
+        );
+        setTechnicians(filteredTechs);
+      }
+    } catch (err) {
+      console.error("Error loading technicians:", err);
+      setToast({ type: 'error', message: 'Could not load technician list' });
     }
   };
 
@@ -127,90 +150,142 @@ export default function AdminTicketsPage() {
 
   return (
     <Layout title="Admin Ticketing">
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">All Tickets (Admin Board)</h2>
-        <div className="flex gap-4 mt-4">
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="rounded-lg border-zinc-200 dark:border-zinc-800 dark:bg-zinc-900 text-sm py-2 px-3 text-zinc-900 dark:text-zinc-100">
-            <option value="">All Statuses</option>
-            <option value="OPEN">Open</option>
-            <option value="IN_PROGRESS">In Progress</option>
-            <option value="RESOLVED">Resolved</option>
-            <option value="CLOSED">Closed</option>
-          </select>
-          <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} className="rounded-lg border-zinc-200 dark:border-zinc-800 dark:bg-zinc-900 text-sm py-2 px-3 text-zinc-900 dark:text-zinc-100">
-            <option value="">All Priorities</option>
-            <option value="LOW">Low</option>
-            <option value="MEDIUM">Medium</option>
-            <option value="HIGH">High</option>
-          </select>
+      <div className="mb-8 p-8 rounded-3xl bg-gradient-to-br from-violet-900 to-indigo-900 dark:from-zinc-900 dark:to-zinc-950 text-white shadow-xl relative overflow-hidden">
+        {/* Abstract decorative shapes */}
+        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-white opacity-5 blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 rounded-full bg-violet-400 opacity-10 blur-2xl"></div>
+        
+        <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div>
+            <h2 className="text-3xl font-extrabold tracking-tight">Admin Dashboard</h2>
+            <p className="text-violet-200 dark:text-zinc-400 mt-2 text-sm font-medium">Manage all campus tickets, assign personnel, and track resolutions.</p>
+          </div>
+          
+          <div className="flex gap-3 bg-white/10 dark:bg-zinc-800/50 backdrop-blur-md p-2 rounded-2xl border border-white/10">
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="appearance-none bg-transparent hover:bg-white/5 cursor-pointer font-semibold rounded-xl text-sm py-2 px-4 outline-none transition-colors border border-transparent hover:border-white/20">
+              <option value="" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">All Statuses</option>
+              <option value="OPEN" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">Open</option>
+              <option value="IN_PROGRESS" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">In Progress</option>
+              <option value="RESOLVED" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">Resolved</option>
+              <option value="CLOSED" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">Closed</option>
+            </select>
+            <div className="w-px bg-white/20 my-2"></div>
+            <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} className="appearance-none bg-transparent hover:bg-white/5 cursor-pointer font-semibold rounded-xl text-sm py-2 px-4 outline-none transition-colors border border-transparent hover:border-white/20">
+              <option value="" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">All Priorities</option>
+              <option value="LOW" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">Low</option>
+              <option value="MEDIUM" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">Medium</option>
+              <option value="HIGH" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">High</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden">
+      <div className="bg-white dark:bg-zinc-900/50 backdrop-blur-sm border border-zinc-200/50 dark:border-zinc-800/50 rounded-2xl shadow-xl overflow-hidden relative">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
-            <thead className="bg-zinc-50 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 font-semibold uppercase">
+          <table className="w-full text-sm text-left whitespace-nowrap">
+            <thead className="bg-zinc-50 dark:bg-zinc-800/50 text-zinc-500 dark:text-zinc-400 font-bold uppercase tracking-wider text-[11px]">
               <tr>
-                <th className="px-6 py-4">ID / Category</th>
+                <th className="px-6 py-4">Request Detail</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Priority</th>
-                <th className="px-6 py-4">Assignee</th>
-                <th className="px-6 py-4 text-right">Actions</th>
+                <th className="px-6 py-4">Assigned To</th>
+                <th className="px-6 py-4 text-right">Admin Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-              {!loading && tickets.map(t => (
-                <tr key={t.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
-                  <td className="px-6 py-4">
-                    <div className="font-medium text-zinc-900 dark:text-zinc-100 cursor-pointer" onClick={() => navigate(`/tickets/${t.id}`)}>
-                      {t.category}
-                    </div>
-                    <div className="text-xs text-zinc-500">#{t.id.substring(0, 8)}</div>
-                  </td>
-                  <td className="px-6 py-4 font-medium">{t.status.replace('_', ' ')}</td>
-                  <td className="px-6 py-4">{t.priority}</td>
-                  <td className="px-6 py-4">{t.assigneeId || '--'}</td>
-                  <td className="px-6 py-4 text-right space-x-2">
-                    <button onClick={() => openCommentModal(t)} className="p-1.5 bg-zinc-100 text-zinc-600 rounded-lg hover:bg-zinc-200" title="Comments">
-                      <MessageSquare size={14} />
-                    </button>
-                    <button onClick={() => { setAssignModal(t); setTechnicianId(t.assigneeId || ''); }} className="px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-xs font-semibold">
-                      Assign
-                    </button>
-                    <button onClick={() => { setStatusModal(t); setNewStatus(t.status); setResolutionNote(''); }} className="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-semibold">
-                      Status
-                    </button>
-                    {t.status !== 'REJECTED' && (
-                      <button onClick={() => { setRejectModal(t); setRejectionReason(''); }} className="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-semibold">
-                        Reject
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/50">
+              {loading ? (
+                <tr><td colSpan="5" className="p-8"><SkeletonGrid /></td></tr>
+              ) : tickets.length === 0 ? (
+                <tr><td colSpan="5" className="p-12 text-center text-zinc-500 font-medium">No tickets found matching current filters.</td></tr>
+              ) : (
+                tickets.map(t => (
+                  <tr key={t.id} className="group hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-[15px] text-zinc-900 dark:text-zinc-100 cursor-pointer group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors flex items-center gap-2" onClick={() => navigate(`/tickets/${t.id}`)}>
+                        {t.category}
+                      </div>
+                      <div className="text-xs text-zinc-400 font-mono mt-1 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600"></span>
+                        #{t.id.substring(0, 8)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest ${
+                        t.status === 'OPEN' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                        t.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                        t.status === 'RESOLVED' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                        t.status === 'REJECTED' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                        'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+                      }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                          t.status === 'OPEN' ? 'bg-amber-500' : t.status === 'IN_PROGRESS' ? 'bg-blue-500' : t.status === 'RESOLVED' ? 'bg-emerald-500' : 'bg-red-500'
+                        }`}></span>
+                        {t.status.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`font-bold text-xs ${t.priority === 'HIGH' ? 'text-red-600 dark:text-red-400' : t.priority === 'MEDIUM' ? 'text-amber-600 dark:text-amber-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                        {t.priority}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 font-medium text-xs text-zinc-700 dark:text-zinc-300">
+                      {t.assigneeId ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 flex items-center justify-center text-[10px] font-bold text-zinc-600 dark:text-zinc-300">
+                            {t.assigneeId.substring(0,2).toUpperCase()}
+                          </div>
+                          {t.assigneeId.substring(0,6)}...
+                        </div>
+                      ) : (
+                        <span className="text-zinc-400 italic">Unassigned</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => openCommentModal(t)} className="p-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 rounded-lg hover:border-blue-300 hover:text-blue-600 transition-all shadow-sm" title="Comments">
+                          <MessageSquare size={14} />
+                        </button>
+                        <button onClick={() => { setAssignModal(t); setTechnicianId(t.assigneeId || ''); }} className="px-3 py-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-lg text-xs font-bold hover:border-violet-300 hover:text-violet-600 transition-all shadow-sm flex items-center gap-1.5">
+                          Assigned
+                        </button>
+                        <button onClick={() => { setStatusModal(t); setNewStatus(t.status); setResolutionNote(''); }} className="px-3 py-2 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 rounded-lg text-xs font-bold hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors flex items-center gap-1.5">
+                          Status
+                        </button>
+                        {t.status !== 'REJECTED' && (
+                          <button onClick={() => { setRejectModal(t); setRejectionReason(''); }} className="p-2 bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors" title="Reject Ticket">
+                            <X size={14} strokeWidth={3} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* --- QUICK COMMENT MODAL (Satisfies Module C Ownership) --- */}
+      {/* --- QUICK COMMENT MODAL --- */}
       {commentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl p-6 w-full max-w-lg border border-zinc-200 dark:border-zinc-800 shadow-xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">Ticket Discussions</h3>
-              <button onClick={() => setCommentModal(null)}><X size={20} /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setCommentModal(null)}></div>
+          <div className="relative bg-white dark:bg-zinc-900 rounded-3xl p-6 w-full max-w-lg border border-zinc-200/50 dark:border-zinc-800/50 shadow-2xl transform transition-all">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-extrabold flex items-center gap-2"><MessageSquare size={20} className="text-violet-500" /> Discussion</h3>
+              <button onClick={() => setCommentModal(null)} className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"><X size={18} /></button>
             </div>
 
-            <div className="max-h-60 overflow-y-auto space-y-3 mb-4 pr-2">
-              {activeComments.map(c => (
-                <div key={c.id} className="p-3 bg-zinc-50 dark:bg-zinc-800 rounded-lg relative group">
-                  <p className="text-xs text-zinc-700 dark:text-zinc-300">{c.content}</p>
-                  <div className="flex justify-between mt-2">
-                    <span className="text-[10px] text-zinc-400">By: {c.authorId?.substring(0, 5)}</span>
-                    {/* OWNERSHIP RULE: Only show delete if user is author OR is admin */}
+            <div className="max-h-72 overflow-y-auto space-y-4 mb-6 pr-2 scrollbar-thin scrollbar-thumb-zinc-200 dark:scrollbar-thumb-zinc-700">
+              {activeComments.length === 0 ? (
+                <p className="text-center text-zinc-400 text-sm font-medium py-4">No comments yet</p>
+              ) : activeComments.map(c => (
+                <div key={c.id} className="p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl relative group">
+                  <p className="text-sm text-zinc-800 dark:text-zinc-200">{c.content}</p>
+                  <div className="flex justify-between mt-3 items-center">
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">User: {c.authorId?.substring(0, 5)}</span>
                     {(currentUserId === c.authorId || isAdmin()) && (
-                      <button onClick={() => handleDeleteComment(c.id)} className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => handleDeleteComment(c.id)} className="text-red-400 opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-50 dark:hover:bg-red-900/20 rounded">
                         <Trash2 size={12} />
                       </button>
                     )}
@@ -219,15 +294,15 @@ export default function AdminTicketsPage() {
               ))}
             </div>
 
-            <form onSubmit={handleAddComment} className="flex gap-2">
+            <form onSubmit={handleAddComment} className="flex gap-3 pt-4 border-t border-zinc-100 dark:border-zinc-800">
               <input
                 type="text"
                 value={newComment}
                 onChange={e => setNewComment(e.target.value)}
-                placeholder="Write official reply..."
-                className="flex-1 rounded-lg border border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 px-3 py-2 text-sm"
+                placeholder="Official reply..."
+                className="flex-1 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-all"
               />
-              <button type="submit" className="px-4 py-2 bg-zinc-900 text-white rounded-lg text-sm font-medium">Post</button>
+              <button type="submit" className="px-6 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-bold shadow-md transition-colors">Post</button>
             </form>
           </div>
         </div>
@@ -235,14 +310,28 @@ export default function AdminTicketsPage() {
 
       {/* Assign Modal */}
       {assignModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl p-6 w-full max-w-md border border-zinc-200 dark:border-zinc-800 shadow-xl">
-            <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-4">Assign Technician</h3>
-            <form onSubmit={handleAssign}>
-              <input type="text" value={technicianId} onChange={e => setTechnicianId(e.target.value)} required placeholder="Technician User ID" className="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 px-3 py-2 text-zinc-900 dark:text-zinc-100 mb-4" />
-              <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setAssignModal(null)} className="px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-700 dark:text-zinc-300 font-medium">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-violet-600 text-white rounded-lg font-medium">Save</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAssignModal(null)}></div>
+          <div className="relative bg-white dark:bg-zinc-900 rounded-3xl p-8 w-full max-w-md border border-zinc-200/50 dark:border-zinc-800/50 shadow-2xl">
+            <h3 className="text-xl font-extrabold mb-6">Assign Representative</h3>
+            <form onSubmit={handleAssign} className="space-y-6">
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Select Technician</label>
+                <select
+                  value={technicianId}
+                  onChange={e => setTechnicianId(e.target.value)}
+                  required
+                  className="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-4 py-3 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all appearance-none"
+                >
+                  <option value="">-- Choose available technician --</option>
+                  {technicians.map(tech => (
+                    <option key={tech.id} value={tech.id}>{tech.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setAssignModal(null)} className="px-5 py-2.5 text-sm font-bold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors">Cancel</button>
+                <button type="submit" className="px-6 py-2.5 bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl text-sm font-bold shadow-md hover:scale-105 active:scale-95 transition-all">Confirm</button>
               </div>
             </form>
           </div>
@@ -251,22 +340,29 @@ export default function AdminTicketsPage() {
 
       {/* Status Modal */}
       {statusModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-xl p-6 w-full max-w-md border border-zinc-200 dark:border-zinc-800 shadow-xl">
-            <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-4">Change Status</h3>
-            <form onSubmit={handleChangeStatus}>
-              <select value={newStatus} onChange={e => setNewStatus(e.target.value)} className="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 px-3 py-2 text-zinc-900 dark:text-zinc-100 mb-4">
-                <option value="OPEN">OPEN</option>
-                <option value="IN_PROGRESS">IN PROGRESS</option>
-                <option value="RESOLVED">RESOLVED</option>
-                <option value="CLOSED">CLOSED</option>
-              </select>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setStatusModal(null)}></div>
+          <div className="relative bg-white dark:bg-zinc-900 rounded-3xl p-8 w-full max-w-md border border-zinc-200/50 dark:border-zinc-800/50 shadow-2xl">
+            <h3 className="text-xl font-extrabold mb-6">Update Status</h3>
+            <form onSubmit={handleChangeStatus} className="space-y-5">
+              <div>
+                 <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Status Stage</label>
+                <select value={newStatus} onChange={e => setNewStatus(e.target.value)} className="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-4 py-3 outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 transition-all appearance-none cursor-pointer">
+                  <option value="OPEN">OPEN - Reviewing</option>
+                  <option value="IN_PROGRESS">IN PROGRESS - Working on it</option>
+                  <option value="RESOLVED">RESOLVED - Issue Fixed</option>
+                  <option value="CLOSED">CLOSED - Archived</option>
+                </select>
+              </div>
               {newStatus === 'RESOLVED' && (
-                <textarea required value={resolutionNote} onChange={e => setResolutionNote(e.target.value)} placeholder="Resolution Note" rows={3} className="w-full rounded-lg border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 px-3 py-2 text-zinc-900 dark:text-zinc-100 mb-4" />
+                <div>
+                   <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Resolution Note <span className="text-red-500">*</span></label>
+                  <textarea required value={resolutionNote} onChange={e => setResolutionNote(e.target.value)} placeholder="How was it fixed?" rows={3} className="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all resize-none" />
+                </div>
               )}
-              <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setStatusModal(null)} className="px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg text-zinc-700 dark:text-zinc-300 font-medium">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-violet-600 text-white rounded-lg font-medium">Update</button>
+              <div className="flex justify-end gap-3 pt-4">
+                <button type="button" onClick={() => setStatusModal(null)} className="px-5 py-2.5 text-sm font-bold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors">Cancel</button>
+                <button type="submit" className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md hover:scale-105 active:scale-95 transition-all">Update Status</button>
               </div>
             </form>
           </div>
@@ -275,14 +371,19 @@ export default function AdminTicketsPage() {
 
       {/* Reject Modal */}
       {rejectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
-            <h3 className="text-lg font-bold mb-4 flex items-center gap-2"><XCircle className="text-red-500" /> Reject Ticket</h3>
-            <form onSubmit={handleReject}>
-              <textarea required value={rejectionReason} onChange={e => setRejectionReason(e.target.value)} placeholder="Reason for rejection..." className="w-full border rounded-lg px-3 py-2 mb-4" rows={3} />
-              <div className="flex justify-end gap-2">
-                <button type="button" onClick={() => setRejectModal(null)} className="px-4 py-2 text-zinc-600">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-red-600 text-white rounded-lg">Confirm Reject</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setRejectModal(null)}></div>
+          <div className="relative bg-white dark:bg-zinc-900 rounded-3xl p-8 w-full max-w-md border border-red-200 dark:border-red-900/30 shadow-2xl overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1.5 bg-red-500"></div>
+            <h3 className="text-xl font-extrabold mb-6 flex items-center gap-2 text-red-600 dark:text-red-400"><XCircle size={24} /> Reject Ticket</h3>
+            <form onSubmit={handleReject} className="space-y-5">
+               <div>
+                  <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-2">Rejection Reason</label>
+                  <textarea required value={rejectionReason} onChange={e => setRejectionReason(e.target.value)} placeholder="Explain why this is rejected..." className="w-full rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-4 py-3 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all resize-none" rows={3} />
+               </div>
+              <div className="flex justify-end gap-3 pt-4">
+                <button type="button" onClick={() => setRejectModal(null)} className="px-5 py-2.5 text-sm font-bold text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl transition-colors">Cancel</button>
+                <button type="submit" className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-bold shadow-md shadow-red-500/20 hover:scale-105 active:scale-95 transition-all">Confirm Reject</button>
               </div>
             </form>
           </div>

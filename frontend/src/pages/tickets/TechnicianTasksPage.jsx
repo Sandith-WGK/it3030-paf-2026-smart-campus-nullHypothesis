@@ -6,9 +6,10 @@ import { ticketService } from '../../services/api/ticketService';
 import Toast from '../../components/common/Toast';
 import { SkeletonGrid } from '../../components/common/Skeleton';
 import EmptyState from '../../components/common/EmptyState';
-import { showSuccess, showError } from '../../utils/alerts';
+import { showSuccess, showError, showConfirm  } from '../../utils/alerts';
 import { commentService } from '../../services/api/commentService';
 import { getUserId } from '../../utils/auth';
+
 
 export default function TechnicianTasksPage() {
   const navigate = useNavigate();
@@ -37,7 +38,7 @@ export default function TechnicianTasksPage() {
     try {
       const res = await commentService.getCommentsByTicket(ticket.id);
       setActiveComments(res.data || res);
-    } catch (err) {
+    } catch  {
       setToast({ type: 'error', message: 'Failed to load comments' });
     }
   };
@@ -51,7 +52,7 @@ export default function TechnicianTasksPage() {
       const res = await commentService.getCommentsByTicket(commentModal.id);
       setActiveComments(res.data || res);
       showSuccess('Posted', 'Comment added');
-    } catch (err) {
+    } catch  {
       showError('Error', 'Failed to post comment');
     }
   };
@@ -62,7 +63,7 @@ export default function TechnicianTasksPage() {
     try {
       await commentService.deleteComment(commentModal.id, cId);
       setActiveComments(prev => prev.filter(c => c.id !== cId));
-    } catch (err) {
+    } catch  {
       showError('Permission Denied', 'You cannot delete comments made by others.');
     }
   };
@@ -73,7 +74,7 @@ export default function TechnicianTasksPage() {
       const res = await ticketService.getMyTasks();
       const raw = res.data ?? res;
       setTasks(Array.isArray(raw) ? raw : []);
-    } catch (err) {
+    } catch  {
       setToast({ type: 'error', message: 'Failed to load assigned tasks' });
     } finally {
       setLoading(false);

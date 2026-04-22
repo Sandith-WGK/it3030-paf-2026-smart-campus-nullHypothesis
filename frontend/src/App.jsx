@@ -33,7 +33,7 @@ import CreateTicketForm from './pages/tickets/CreateTicketForm';
 import TicketDetailPage from './pages/tickets/TicketDetailPage';
 import AdminTicketsPage from './pages/admin/AdminTicketsPage';
 import TechnicianTasksPage from './pages/tickets/TechnicianTasksPage';
-import { isTechnician } from './utils/auth';
+
 
 // Wrapper for any authenticated route
 const PrivateRoute = ({ children }) => {
