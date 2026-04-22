@@ -154,7 +154,7 @@ export default function AdminTicketsPage() {
         await ticketService.deleteTicket(ticket.id);
         showSuccess('Deleted!', 'Ticket has been permanently removed.');
         loadTickets();
-      } catch (err) {
+      } catch {
         showError('Error', 'Failed to delete ticket. Please try again.');
       }
     }
