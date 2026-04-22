@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { isTechnician } from '../../utils/auth';
 import {
   LayoutDashboard,
   CalendarDays,

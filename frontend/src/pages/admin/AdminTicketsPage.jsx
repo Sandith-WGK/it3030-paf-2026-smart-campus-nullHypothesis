@@ -35,10 +35,6 @@ export default function AdminTicketsPage() {
   const [newComment, setNewComment] = useState('');
   const [activeComments, setActiveComments] = useState([]);
 
-  useEffect(() => {
-    loadTickets();
-    loadTechnicians();
-  }, [statusFilter, priorityFilter]);
 
   const loadTickets = useCallback(async () => {
     setLoading(true);

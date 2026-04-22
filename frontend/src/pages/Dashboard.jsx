@@ -32,8 +32,6 @@ const extractArray = (payload) => {
   return Array.isArray(data) ? data : [];
 };
 
-// eslint-disable-next-line no-unused-vars
-function StatCard({ label, value, icon: StatIcon, color, bg, loading: busy }) {
 const extractCount = (payload) => {
   if (typeof payload === 'number') return payload;
   if (typeof payload?.count === 'number') return payload.count;
@@ -42,6 +40,11 @@ const extractCount = (payload) => {
   if (typeof payload?.data?.unreadCount === 'number') return payload.data.unreadCount;
   return 0;
 };
+
+// eslint-disable-next-line no-unused-vars
+function StatCard({ label, value, icon: StatIcon, color, bg, loading: busy }) {
+  return null;
+}
 
 function SummaryCard({ title, value, subtitle, icon, tone, loading }) {
   return (
