@@ -180,6 +180,13 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
     setErrors((er) => ({ ...er, [field]: undefined }));
   };
 
+  // Prevent accidental wheel/arrow-step edits on attendee counts and keep only whole numbers.
+  const handleExpectedAttendeesChange = (e) => {
+    const raw = e.target.value;
+    const digitsOnly = raw.replace(/\D/g, '');
+    setField('expectedAttendees', digitsOnly);
+  };
+
   // ── Resources ─────────────────────────────────────────────────────────────────
   const [resources, setResources] = useState([]);
   const [resourcesLoading, setResourcesLoading] = useState(!fixedResourceId);
@@ -894,9 +901,16 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
                 type="number"
                 className={inputClass}
                 min={1}
+                step={1}
                 placeholder="e.g. 20"
                 value={form.expectedAttendees}
-                onChange={set('expectedAttendees')}
+                onChange={handleExpectedAttendeesChange}
+                onWheel={(e) => e.currentTarget.blur()}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                  }
+                }}
               />
               {errors.expectedAttendees && (
                 <p className={errorClass}>{errors.expectedAttendees}</p>
