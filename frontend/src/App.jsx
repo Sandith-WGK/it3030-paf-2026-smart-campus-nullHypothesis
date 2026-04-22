@@ -20,6 +20,7 @@ import MyBookings from './pages/bookings/MyBookings';
 import NewBooking from './pages/bookings/NewBooking';
 import EditBooking from './pages/bookings/EditBooking';
 import BookingDetail from './pages/bookings/BookingDetail';
+import VerifyBooking from './pages/bookings/VerifyBooking';
 import AdminBookings from './pages/admin/AdminBookings';
 
 // Resource pages 
@@ -121,6 +122,7 @@ function App() {
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/verify-2fa" element={<VerifyTwoFactor />} />
+      <Route path="/verify-booking/:id" element={<VerifyBooking />} />
       
       {/* Protected routes (USER) */}
       <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
