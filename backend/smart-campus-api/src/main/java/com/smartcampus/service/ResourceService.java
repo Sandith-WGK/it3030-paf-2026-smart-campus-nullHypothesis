@@ -292,12 +292,32 @@ public class ResourceService {
      */
     public void deleteResource(String id) {
         Resource resource = getResourceById(id);
+
+        // ACTIVE BOOKINGS CHECK - Prevent deletion if resource has active bookings
+        if (hasActiveBookings(id)) {
+            throw new IllegalArgumentException(
+                "Cannot delete resource '" + resource.getName() + "' because it has active bookings (PENDING or APPROVED). " +
+                "Please cancel or complete all bookings first."
+            );
+        }
         
         // Notify affected users before deletion
         notifyResourceDeletion(resource);
         
         log.info("Deleting resource: {}", id);
         resourceRepository.deleteById(id);
+    }
+
+    /**
+     * Check if a resource has any active bookings (PENDING or APPROVED)
+     * @param resourceId Resource ID to check
+     * @return true if active bookings exist
+     */
+    public boolean hasActiveBookings(String resourceId) {
+        List<BookingStatus> activeStatuses = List.of(BookingStatus.APPROVED, BookingStatus.PENDING);
+        List<Booking> activeBookings = bookingRepository.findByResourceIdAndStatusInAndDateGreaterThanEqual(
+                resourceId, activeStatuses, LocalDate.now());
+        return !activeBookings.isEmpty();
     }
 
     /**
