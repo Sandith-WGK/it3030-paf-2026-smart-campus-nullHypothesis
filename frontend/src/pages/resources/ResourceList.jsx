@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion as Motion, AnimatePresence } from 'framer-motion';
 import resourceApi from '../../services/api/resourceApi';
 import { 
@@ -8,9 +8,10 @@ import {
   ChevronDown, ChevronUp, X, CheckCircle,
   AlertCircle, LayoutGrid, Grid3x3, Eye, 
   TrendingUp, Sparkles, ArrowRight, Clock as ClockIcon,
-  Star, Zap
+  Star, Zap, Heart
 } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
+import FavoritesList from '../../components/common/FavoritesList';
 
 // Constants for resource types
 const RESOURCE_TYPES = {
@@ -31,7 +32,7 @@ const getStatusConfig = (status) => {
     : { label: 'Offline', color: 'rose', icon: AlertCircle };
 };
 
-// Recently Viewed Hook (FIXED - no direct setState in useEffect)
+// Recently Viewed Hook
 const useRecentlyViewed = () => {
   const STORAGE_KEY = 'recently_viewed_resources';
   const MAX_ITEMS = 5;
@@ -649,6 +650,27 @@ const ResourceList = () => {
               </div>
               <StatsCards stats={stats} />
             </div>
+
+            {/* My Favorites Quick Link - NEW */}
+            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3">
+                <Heart size={16} className="text-red-500" />
+                <h3 className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm">Quick Links</h3>
+              </div>
+              <Link
+                to="/my-favorites"
+                className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-500/10 rounded-lg hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors group"
+              >
+                <div className="flex items-center gap-2">
+                  <Heart size={16} className="text-red-500" />
+                  <span className="text-sm font-medium text-red-600 dark:text-red-400">My Favorites</span>
+                </div>
+                <ArrowRight size={14} className="text-red-400 opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-1" />
+              </Link>
+            </div>
+
+            {/* Favorites List */}
+            <FavoritesList />
 
             {/* Recently Viewed */}
             <RecentlyViewedComponent 
