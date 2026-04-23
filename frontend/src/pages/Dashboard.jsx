@@ -46,8 +46,8 @@ function StatCard({ label, value, icon: StatIcon, color, bg, loading: busy }) {
   return null;
 }
 
-function SummaryCard({ title, value, subtitle, icon, tone, loading }) {
-  return (
+function SummaryCard({ title, value, subtitle, icon, tone, loading, onClick }) {
+  const cardBody = (
     <div className={`rounded-2xl border p-5 shadow-sm bg-white dark:bg-zinc-900 ${tone.border}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
@@ -60,6 +60,21 @@ function SummaryCard({ title, value, subtitle, icon, tone, loading }) {
         <div className={`rounded-xl p-3 ${tone.bg}`}>{React.createElement(icon, { size: 20, className: tone.text })}</div>
       </div>
     </div>
+  );
+
+  if (!onClick) {
+    return cardBody;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full text-left rounded-2xl transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-violet-500/60"
+      aria-label={`${title}: ${value}`}
+    >
+      {cardBody}
+    </button>
   );
 }
 
@@ -206,6 +221,7 @@ export default function Dashboard() {
           title: 'Pending Approvals',
           value: metrics.adminPendingBookings,
           subtitle: 'Bookings waiting admin decision',
+          href: '/admin/bookings?status=PENDING',
           icon: ClipboardList,
           tone: { text: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-500/10', border: 'border-amber-100 dark:border-amber-500/20' },
         },
@@ -439,6 +455,7 @@ export default function Dashboard() {
                 subtitle={card.subtitle}
                 icon={card.icon}
                 tone={card.tone}
+                onClick={card.href ? () => navigate(card.href) : undefined}
                 loading={loading}
               />
             ))}
