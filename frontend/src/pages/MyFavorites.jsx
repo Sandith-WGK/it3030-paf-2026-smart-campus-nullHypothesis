@@ -1,10 +1,11 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useFavorites } from '../hooks/useFavorites';
 import Layout from '../components/layout/Layout';
-import { Heart, MapPin, Users, Clock, Trash2, Loader2 } from 'lucide-react';
+import { Heart, MapPin, Users, Clock, Trash2, Loader2, ArrowLeft } from 'lucide-react';
 
 const MyFavorites = () => {
+  const navigate = useNavigate();
   const { favorites, loading, removeFavorite } = useFavorites();
 
   const getTypeIcon = (type) => {
@@ -40,6 +41,15 @@ const MyFavorites = () => {
   return (
     <Layout title="My Favorites">
       <div className="max-w-4xl mx-auto">
+        {/* Back Button */}
+        <button
+          onClick={() => navigate('/resources')}
+          className="inline-flex items-center gap-2 text-zinc-600 hover:text-violet-600 dark:text-zinc-400 dark:hover:text-violet-400 transition-colors mb-6 group"
+        >
+          <ArrowLeft size={18} className="group-hover:-translate-x-0.5 transition-transform" />
+          <span className="text-sm font-medium">Back to Resources</span>
+        </button>
+
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Heart className="text-red-500" size={28} />
