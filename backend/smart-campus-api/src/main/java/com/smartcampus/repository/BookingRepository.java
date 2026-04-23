@@ -11,7 +11,7 @@ import java.time.LocalTime;
 import java.util.List;
 
 @Repository
-public interface BookingRepository extends MongoRepository<Booking, String> {
+public interface BookingRepository extends MongoRepository<Booking, String>, BookingApprovalRepository {
 
     // Get all bookings by a specific user
     List<Booking> findByUserId(String userId);

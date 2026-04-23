@@ -5,6 +5,7 @@ import com.smartcampus.dto.booking.BookingRejectRequest;
 import com.smartcampus.dto.booking.BookingRequest;
 import com.smartcampus.dto.booking.BookingResponse;
 import com.smartcampus.dto.booking.BookingUpdateRequest;
+import com.smartcampus.dto.booking.PublicBookingVerificationResponse;
 import com.smartcampus.dto.PagedResponse;
 import com.smartcampus.exception.BookingConflictException;
 import com.smartcampus.exception.InvalidBookingStateException;
@@ -16,7 +17,6 @@ import com.smartcampus.repository.ResourceRepository;
 import com.smartcampus.repository.UserRepository;
 import com.smartcampus.security.BookingVerificationTokenService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -187,17 +187,20 @@ public class BookingService {
         checkForConflicts(booking.getResourceId(), booking.getDate(),
                 booking.getStartTime(), booking.getEndTime(), booking.getId());
 
-        // Re-check right before save to reduce TOCTOU window in concurrent admin actions.
-        checkForConflicts(booking.getResourceId(), booking.getDate(),
-                booking.getStartTime(), booking.getEndTime(), booking.getId());
-
-        booking.setStatus(BookingStatus.APPROVED);
-        Booking saved;
-        try {
-            saved = bookingRepository.save(booking);
-        } catch (DuplicateKeyException ex) {
+        // Guard against approval races by serializing approval decisions per
+        // resource/date and re-checking overlap within that critical section.
+        boolean approved = bookingRepository.transitionPendingToApprovedIfNoOverlap(
+                booking.getId(),
+                booking.getResourceId(),
+                booking.getDate(),
+                booking.getStartTime(),
+                booking.getEndTime()
+        );
+        if (!approved) {
             throw new BookingConflictException("This slot was just approved by another request. Please refresh and try again.");
         }
+        booking.setStatus(BookingStatus.APPROVED);
+        Booking saved = booking;
 
         String resourceName = resource.getName();
 
@@ -540,7 +543,7 @@ public class BookingService {
         return bookingVerificationTokenService.generateToken(booking);
     }
 
-    public BookingResponse verifyBookingByToken(String token) {
+    public PublicBookingVerificationResponse verifyBookingByToken(String token) {
         String bookingId = bookingVerificationTokenService.validateAndGetBookingId(token);
         Booking booking = findBookingOrThrow(bookingId);
 
@@ -558,8 +561,7 @@ public class BookingService {
         }
 
         Resource resource = resourceRepository.findById(booking.getResourceId()).orElse(null);
-        User user = userRepository.findById(booking.getUserId()).orElse(null);
-        return BookingResponse.from(booking, resource, user);
+        return PublicBookingVerificationResponse.from(booking, resource);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

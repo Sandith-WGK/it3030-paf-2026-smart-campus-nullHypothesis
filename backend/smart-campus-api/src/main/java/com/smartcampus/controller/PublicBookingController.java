@@ -1,7 +1,7 @@
 package com.smartcampus.controller;
 
 import com.smartcampus.dto.ApiResponse;
-import com.smartcampus.dto.booking.BookingResponse;
+import com.smartcampus.dto.booking.PublicBookingVerificationResponse;
 import com.smartcampus.service.BookingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,9 +18,9 @@ public class PublicBookingController {
     private final BookingService bookingService;
 
     @GetMapping("/verify")
-    public ResponseEntity<ApiResponse<BookingResponse>> verifyBookingByToken(
+    public ResponseEntity<ApiResponse<PublicBookingVerificationResponse>> verifyBookingByToken(
             @RequestParam String token) {
-        BookingResponse response = bookingService.verifyBookingByToken(token);
+        PublicBookingVerificationResponse response = bookingService.verifyBookingByToken(token);
         return ResponseEntity.ok(ApiResponse.success("Booking verified successfully", response));
     }
 }

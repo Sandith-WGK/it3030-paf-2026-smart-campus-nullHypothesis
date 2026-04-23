@@ -420,7 +420,7 @@ const ResourceDetail = () => {
                 {resource.status === 'ACTIVE' ? (
                   <div className="mt-8">
                     <button
-                      onClick={() => navigate(`/bookings/create?resourceId=${id}`)}
+                      onClick={() => navigate(`/bookings/new?resourceId=${id}`)}
                       className="group w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-semibold rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-violet-600/20"
                     >
                       <ClockIcon size={18} className="group-hover:animate-pulse" />

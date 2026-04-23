@@ -63,12 +63,14 @@ export default function VerifyBooking() {
                 value={booking.resourceName}
                 sub={booking.resourceLocation}
               />
-              <DetailRow
-                icon={User}
-                label="Booked By"
-                value={booking.userName}
-                sub={booking.userEmail}
-              />
+              {(booking.userName || booking.userEmail) && (
+                <DetailRow
+                  icon={User}
+                  label="Booked By"
+                  value={booking.userName}
+                  sub={booking.userEmail}
+                />
+              )}
               <DetailRow
                 icon={CalendarDays}
                 label="Date"
@@ -91,7 +93,7 @@ export default function VerifyBooking() {
             {/* Footer */}
             <div className="px-6 py-4 bg-green-50 dark:bg-green-500/5 border-t border-green-100 dark:border-green-500/20 text-center">
               <p className="text-xs text-green-700 dark:text-green-400 font-medium">
-                ✓ Please allow entry for the person named above
+                ✓ Booking validation passed for this time slot
               </p>
             </div>
           </div>
