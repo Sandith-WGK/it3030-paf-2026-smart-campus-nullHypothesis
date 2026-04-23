@@ -88,17 +88,6 @@ public class ResourceService {
                 .orElseThrow(() -> new ResourceNotFoundException("Resource not found with id: " + id));
     }
 
-    /**
-     * Check if resource has active bookings (PENDING or APPROVED)
-     * @param resourceId Resource ID to check
-     * @return true if has active bookings, false otherwise
-     */
-    private boolean hasActiveBookings(String resourceId) {
-        List<BookingStatus> activeStatuses = List.of(BookingStatus.PENDING, BookingStatus.APPROVED);
-        List<Booking> activeBookings = bookingRepository.findByResourceIdAndStatusInAndDateGreaterThanEqual(
-                resourceId, activeStatuses, LocalDate.now());
-        return !activeBookings.isEmpty();
-    }
 
     /**
      * Create a new resource with validation
