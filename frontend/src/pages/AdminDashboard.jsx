@@ -519,6 +519,11 @@ export default function AdminDashboard() {
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-semibold text-zinc-900 dark:text-zinc-100">{user.name || 'Unnamed User'}</span>
+                              {user.role === 'TECHNICIAN' && user.technicianId && (
+                                <span className="text-[10px] bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 px-1.5 py-0.5 rounded font-mono font-bold">
+                                  {user.technicianId}
+                                </span>
+                              )}
                               {user.createdAt && (Date.now() - new Date(user.createdAt).getTime()) < 86400000 && (
                                 <span className="px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 text-[9px] font-bold uppercase tracking-wider">New</span>
                               )}
@@ -738,6 +743,8 @@ export default function AdminDashboard() {
                       <option value="ADMIN">Admin</option>
                     </select>
                   </div>
+
+
 
                   <div className="col-span-1">
                     <label className="flex items-center gap-1 text-xs font-bold text-zinc-400 uppercase tracking-wider mb-1.5">

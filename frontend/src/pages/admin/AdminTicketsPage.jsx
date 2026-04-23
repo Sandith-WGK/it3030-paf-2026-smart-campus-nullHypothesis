@@ -162,34 +162,42 @@ export default function AdminTicketsPage() {
 
   return (
     <Layout title="Admin Ticketing">
-      <div className="mb-8 p-8 rounded-3xl bg-gradient-to-br from-violet-900 to-indigo-900 dark:from-zinc-900 dark:to-zinc-950 text-white shadow-xl relative overflow-hidden">
-        {/* Abstract decorative shapes */}
-        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-white opacity-5 blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 rounded-full bg-violet-400 opacity-10 blur-2xl"></div>
-        
-        <div className="relative z-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div className="mb-10">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gradient-to-r from-violet-600/10 to-indigo-600/10 dark:from-violet-900/20 dark:to-indigo-900/20 p-8 rounded-2xl border border-violet-100 dark:border-violet-900/30">
           <div>
-            <h2 className="text-3xl font-extrabold tracking-tight">Admin Dashboard</h2>
-            <p className="text-violet-200 dark:text-zinc-400 mt-2 text-sm font-medium">Manage all campus tickets, assign personnel, and track resolutions.</p>
-          </div>
-          
-          <div className="flex gap-3 bg-white/10 dark:bg-zinc-800/50 backdrop-blur-md p-2 rounded-2xl border border-white/10">
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="appearance-none bg-transparent hover:bg-white/5 cursor-pointer font-semibold rounded-xl text-sm py-2 px-4 outline-none transition-colors border border-transparent hover:border-white/20">
-              <option value="" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">All Statuses</option>
-              <option value="OPEN" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">Open</option>
-              <option value="IN_PROGRESS" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">In Progress</option>
-              <option value="RESOLVED" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">Resolved</option>
-              <option value="CLOSED" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">Closed</option>
-            </select>
-            <div className="w-px bg-white/20 my-2"></div>
-            <select value={priorityFilter} onChange={e => setPriorityFilter(e.target.value)} className="appearance-none bg-transparent hover:bg-white/5 cursor-pointer font-semibold rounded-xl text-sm py-2 px-4 outline-none transition-colors border border-transparent hover:border-white/20">
-              <option value="" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">All Priorities</option>
-              <option value="LOW" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">Low</option>
-              <option value="MEDIUM" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">Medium</option>
-              <option value="HIGH" className="text-zinc-900 dark:text-zinc-100 bg-white dark:bg-zinc-900">High</option>
-            </select>
+            <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-indigo-600 dark:from-violet-400 dark:to-indigo-400 tracking-tight">
+              Manage Tickets
+            </h2>
+            <p className="text-zinc-600 dark:text-zinc-400 mt-2 font-medium">
+              Manage all campus tickets, assign personnel, and track resolutions.
+            </p>
           </div>
         </div>
+      </div>
+
+      <div className="flex gap-4 mb-8">
+        <select 
+          value={statusFilter} 
+          onChange={e => setStatusFilter(e.target.value)}
+          className="appearance-none font-medium bg-white/60 dark:bg-zinc-900/60 backdrop-blur-md border border-zinc-200 dark:border-zinc-800 rounded-xl px-5 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 shadow-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 outline-none transition-all cursor-pointer"
+        >
+          <option value="">All Statuses</option>
+          <option value="OPEN">Open</option>
+          <option value="IN_PROGRESS">In Progress</option>
+          <option value="RESOLVED">Resolved</option>
+          <option value="CLOSED">Closed</option>
+        </select>
+
+        <select 
+          value={priorityFilter} 
+          onChange={e => setPriorityFilter(e.target.value)}
+          className="appearance-none font-medium bg-white/60 dark:bg-zinc-900/60 backdrop-blur-md border border-zinc-200 dark:border-zinc-800 rounded-xl px-5 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 shadow-sm focus:border-violet-500 focus:ring-2 focus:ring-violet-500/20 outline-none transition-all cursor-pointer"
+        >
+          <option value="">All Priorities</option>
+          <option value="LOW">Low</option>
+          <option value="MEDIUM">Medium</option>
+          <option value="HIGH">High</option>
+        </select>
       </div>
 
       <div className="bg-white dark:bg-zinc-900/50 backdrop-blur-sm border border-zinc-200/50 dark:border-zinc-800/50 rounded-2xl shadow-xl overflow-hidden relative">
@@ -345,7 +353,9 @@ export default function AdminTicketsPage() {
                 >
                   <option value="">-- Choose available technician --</option>
                   {technicians.map(tech => (
-                    <option key={tech.id} value={tech.id}>{tech.name}</option>
+                    <option key={tech.id} value={tech.id}>
+                      {tech.technicianId ? `[${tech.technicianId}] ` : ''}{tech.name} ({tech.email})
+                    </option>
                   ))}
                 </select>
               </div>

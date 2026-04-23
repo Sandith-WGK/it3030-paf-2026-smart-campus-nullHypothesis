@@ -41,6 +41,11 @@ const extractCount = (payload) => {
   return 0;
 };
 
+// eslint-disable-next-line no-unused-vars
+function StatCard({ label, value, icon: StatIcon, color, bg, loading: busy }) {
+  return null;
+}
+
 function SummaryCard({ title, value, subtitle, icon, tone, loading }) {
   return (
     <div className={`rounded-2xl border p-5 shadow-sm bg-white dark:bg-zinc-900 ${tone.border}`}>
@@ -485,8 +490,15 @@ export default function Dashboard() {
             <div className="space-y-2">
               <button onClick={() => navigate('/dashboard')} className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 px-3 py-2 text-left text-sm font-semibold hover:border-violet-300 dark:hover:border-violet-600 transition-colors">Dashboard Overview</button>
               <button onClick={() => navigate('/resources')} className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 px-3 py-2 text-left text-sm font-semibold hover:border-violet-300 dark:hover:border-violet-600 transition-colors">Resources Catalogue</button>
-              <button onClick={() => navigate('/bookings')} className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 px-3 py-2 text-left text-sm font-semibold hover:border-violet-300 dark:hover:border-violet-600 transition-colors">Bookings</button>
-              <button onClick={() => navigate('/tickets')} className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 px-3 py-2 text-left text-sm font-semibold hover:border-violet-300 dark:hover:border-violet-600 transition-colors">Tickets</button>
+              {!technician && (
+                <>
+                  <button onClick={() => navigate('/bookings')} className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 px-3 py-2 text-left text-sm font-semibold hover:border-violet-300 dark:hover:border-violet-600 transition-colors">Bookings</button>
+                  <button onClick={() => navigate('/tickets')} className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 px-3 py-2 text-left text-sm font-semibold hover:border-violet-300 dark:hover:border-violet-600 transition-colors">Tickets</button>
+                </>
+              )}
+              {technician && (
+                <button onClick={() => navigate('/technician/tasks')} className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 px-3 py-2 text-left text-sm font-semibold hover:border-violet-300 dark:hover:border-violet-600 transition-colors">My Tasks</button>
+              )}
               <button onClick={() => navigate('/notifications')} className="w-full rounded-xl border border-zinc-200 dark:border-zinc-800 px-3 py-2 text-left text-sm font-semibold hover:border-violet-300 dark:hover:border-violet-600 transition-colors">Notifications</button>
             </div>
           </div>

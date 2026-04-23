@@ -49,6 +49,7 @@ public class TicketServiceImpl implements TicketService {
     }
 
     private final NotificationService notificationService;
+    private final UserService userService;
 
     @Override
     public TicketResponse createTicket(TicketCreateRequest request, String reporterId) {
@@ -123,8 +124,21 @@ public class TicketServiceImpl implements TicketService {
 
     @Override
     public List<TicketResponse> getTicketsByAssignee(String assigneeId) {
+        // Build a list of potential identifiers (Internal ID and Custom Tech ID)
+        java.util.List<String> idsToSearch = new java.util.ArrayList<>();
+        idsToSearch.add(assigneeId);
         
-        List<Ticket> tickets = ticketRepository.findByAssigneeId(assigneeId);
+        try {
+            User user = userService.getUserById(assigneeId);
+            if (user.getTechnicianId() != null && !user.getTechnicianId().isBlank()) {
+                idsToSearch.add(user.getTechnicianId());
+            }
+        } catch (Exception e) {
+            // User might not exist or ID might already be a technicianId string
+            // We still proceed with the provided assigneeId
+        }
+
+        List<Ticket> tickets = ticketRepository.findAllByAssigneeIdIn(idsToSearch);
         
         return tickets.stream()
                 .filter(t -> t.getStatus() == TicketStatus.OPEN || t.getStatus() == TicketStatus.IN_PROGRESS)
