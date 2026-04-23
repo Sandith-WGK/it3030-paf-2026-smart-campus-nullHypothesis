@@ -322,7 +322,13 @@ class BookingResourceIntegrationTest {
             when(bookingRepository.findConflictingBookings("res-001", FUTURE_DATE,
                     LocalTime.of(10, 0), LocalTime.of(12, 0)))
                     .thenReturn(List.of());
-            when(bookingRepository.save(any(Booking.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(bookingRepository.transitionPendingToApprovedIfNoOverlap(
+                    eq("booking-A"),
+                    eq("res-001"),
+                    eq(FUTURE_DATE),
+                    eq(LocalTime.of(10, 0)),
+                    eq(LocalTime.of(12, 0))
+            )).thenReturn(true);
             when(resourceRepository.findById("res-001")).thenReturn(Optional.of(room));
             when(userRepository.findById("user-A")).thenReturn(Optional.of(
                     User.builder().id("user-A").name("User A").email("a@sliit.lk").build()));
@@ -389,7 +395,13 @@ class BookingResourceIntegrationTest {
             when(bookingRepository.findConflictingBookings("res-001", FUTURE_DATE,
                     LocalTime.of(9, 0), LocalTime.of(11, 0)))
                     .thenReturn(List.of());
-            when(bookingRepository.save(any(Booking.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(bookingRepository.transitionPendingToApprovedIfNoOverlap(
+                    eq("booking-morning"),
+                    eq("res-001"),
+                    eq(FUTURE_DATE),
+                    eq(LocalTime.of(9, 0)),
+                    eq(LocalTime.of(11, 0))
+            )).thenReturn(true);
             when(resourceRepository.findById("res-001")).thenReturn(Optional.of(room));
             when(userRepository.findById("user-A")).thenReturn(Optional.of(
                     User.builder().id("user-A").name("User A").email("a@sliit.lk").build()));
@@ -402,6 +414,13 @@ class BookingResourceIntegrationTest {
             when(bookingRepository.findConflictingBookings("res-001", FUTURE_DATE,
                     LocalTime.of(11, 0), LocalTime.of(13, 0)))
                     .thenReturn(List.of());
+            when(bookingRepository.transitionPendingToApprovedIfNoOverlap(
+                    eq("booking-afternoon"),
+                    eq("res-001"),
+                    eq(FUTURE_DATE),
+                    eq(LocalTime.of(11, 0)),
+                    eq(LocalTime.of(13, 0))
+            )).thenReturn(true);
             when(userRepository.findById("user-B")).thenReturn(Optional.of(
                     User.builder().id("user-B").name("User B").email("b@sliit.lk").build()));
 

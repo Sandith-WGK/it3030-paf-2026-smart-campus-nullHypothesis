@@ -4,6 +4,7 @@ import com.smartcampus.dto.booking.BookingRejectRequest;
 import com.smartcampus.dto.booking.BookingRequest;
 import com.smartcampus.dto.booking.BookingResponse;
 import com.smartcampus.dto.booking.BookingUpdateRequest;
+import com.smartcampus.dto.booking.PublicBookingVerificationResponse;
 import com.smartcampus.exception.BookingConflictException;
 import com.smartcampus.exception.InvalidBookingStateException;
 import com.smartcampus.exception.ResourceNotFoundException;
@@ -377,7 +378,13 @@ class BookingServiceTest {
             when(bookingRepository.findById("booking-001")).thenReturn(Optional.of(pendingBooking));
             when(bookingRepository.findConflictingBookings(anyString(), any(), any(), any()))
                     .thenReturn(List.of());
-            when(bookingRepository.save(any(Booking.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(bookingRepository.transitionPendingToApprovedIfNoOverlap(
+                    eq("booking-001"),
+                    eq("res-001"),
+                    eq(FUTURE_DATE),
+                    eq(LocalTime.of(10, 0)),
+                    eq(LocalTime.of(11, 0))
+            )).thenReturn(true);
             when(resourceRepository.findById("res-001")).thenReturn(Optional.of(activeRoom));
             when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser));
 
@@ -686,11 +693,11 @@ class BookingServiceTest {
                     .thenReturn("booking-verify");
             when(bookingRepository.findById("booking-verify")).thenReturn(Optional.of(approved));
             when(resourceRepository.findById("res-001")).thenReturn(Optional.of(activeRoom));
-            when(userRepository.findById(USER_ID)).thenReturn(Optional.of(testUser));
 
-            BookingResponse response = bookingService.verifyBookingByToken("valid-token");
+            PublicBookingVerificationResponse response = bookingService.verifyBookingByToken("valid-token");
             assertThat(response.getStatus()).isEqualTo(BookingStatus.APPROVED);
             assertThat(response.getId()).isEqualTo("booking-verify");
+            assertThat(response.getResourceName()).isEqualTo("Meeting Room A");
         }
     }
 
