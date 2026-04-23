@@ -640,9 +640,9 @@ const ResourceList = () => {
             )}
           </div>
 
-          {/* Sidebar */}
+          {/* Sidebar - Order: 1. Overview → 2. Quick Links → 3. Recently Viewed → 4. Favorites */}
           <div className="lg:col-span-1 space-y-6">
-            {/* Stats Overview */}
+            {/* 1. Stats Overview */}
             <div className="hidden lg:block bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 shadow-sm">
               <div className="flex items-center gap-2 mb-3">
                 <TrendingUp size={16} className="text-violet-500" />
@@ -651,7 +651,7 @@ const ResourceList = () => {
               <StatsCards stats={stats} />
             </div>
 
-            {/* My Favorites Quick Link - NEW */}
+            {/* 2. Quick Links - My Favorites */}
             <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 shadow-sm">
               <div className="flex items-center gap-2 mb-3">
                 <Heart size={16} className="text-red-500" />
@@ -669,10 +669,7 @@ const ResourceList = () => {
               </Link>
             </div>
 
-            {/* Favorites List */}
-            <FavoritesList />
-
-            {/* Recently Viewed */}
+            {/* 3. Recently Viewed */}
             <RecentlyViewedComponent 
               items={recentItems}
               onItemClick={(id) => {
@@ -681,6 +678,9 @@ const ResourceList = () => {
               }}
               onClear={clearRecentlyViewed}
             />
+
+            {/* 4. Favorites List */}
+            <FavoritesList />
           </div>
         </div>
       </div>
