@@ -27,6 +27,8 @@ public class BookingResponse {
     private String userId;
     private String userName;
     private String userEmail;
+    private boolean resourceRecordDeleted;
+    private boolean userRecordDeleted;
     private LocalDate date;
     private LocalTime startTime;
     private LocalTime endTime;
@@ -36,16 +38,36 @@ public class BookingResponse {
     private String rejectionReason;
     private Instant createdAt;
 
+    private static String chooseValue(String primary, String snapshot, String fallback) {
+        if (primary != null && !primary.isBlank()) return primary;
+        if (snapshot != null && !snapshot.isBlank()) return snapshot;
+        return fallback;
+    }
+
     public static BookingResponse from(Booking booking, Resource resource, User user) {
         return BookingResponse.builder()
                 .id(booking.getId())
                 .resourceId(booking.getResourceId())
-                .resourceName(resource != null ? resource.getName() : "Unknown Resource")
+                .resourceName(chooseValue(
+                        resource != null ? resource.getName() : null,
+                        booking.getResourceNameSnapshot(),
+                        "N/A"))
                 .resourceType(resource != null ? resource.getType().name() : null)
-                .resourceLocation(resource != null ? resource.getLocation() : null)
+                .resourceLocation(chooseValue(
+                        resource != null ? resource.getLocation() : null,
+                        booking.getResourceLocationSnapshot(),
+                        null))
                 .userId(booking.getUserId())
-                .userName(user != null ? user.getName() : "Unknown User")
-                .userEmail(user != null ? user.getEmail() : null)
+                .userName(chooseValue(
+                        user != null ? user.getName() : null,
+                        booking.getUserNameSnapshot(),
+                        "N/A"))
+                .userEmail(chooseValue(
+                        user != null ? user.getEmail() : null,
+                        booking.getUserEmailSnapshot(),
+                        null))
+                .resourceRecordDeleted(resource == null)
+                .userRecordDeleted(user == null || (user != null && user.isDeleted()))
                 .date(booking.getDate())
                 .startTime(booking.getStartTime())
                 .endTime(booking.getEndTime())
