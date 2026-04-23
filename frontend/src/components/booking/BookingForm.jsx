@@ -169,6 +169,10 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
     expectedAttendees: initial.expectedAttendees ?? '',
   });
   const [errors, setErrors] = useState({});
+  const hasExpectedAttendees =
+    form.expectedAttendees !== '' &&
+    form.expectedAttendees !== null &&
+    form.expectedAttendees !== undefined;
 
   const set = (field) => (e) => {
     setForm((f) => ({ ...f, [field]: e.target.value }));
@@ -229,6 +233,7 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
     [resources, form.resourceId],
   );
   const activeResource = fixedResourceId ? fixedResource : selectedResource;
+  const attendeesRequired = activeResource?.capacity != null;
   const activeResourceId = fixedResourceId || form.resourceId;
 
   const filteredResources = useMemo(() => {
@@ -300,7 +305,7 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
       allBookings.find(
         (b) =>
           b.status === 'PENDING' &&
-          !(currentUserId && (b.userId === currentUserId || b.userId === String(currentUserId))) &&
+          !(currentUserId && b.userId != null && String(b.userId) === String(currentUserId)) &&
           String(b.startTime).substring(0, 5) < form.endTime &&
           String(b.endTime).substring(0, 5) > form.startTime,
       ) ?? null
@@ -387,11 +392,13 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
         e.purpose = 'Purpose must be at least 5 characters';
       if (form.purpose && form.purpose.length > 500)
         e.purpose = 'Purpose must be at most 500 characters';
-      if (form.expectedAttendees && Number(form.expectedAttendees) < 1)
+      if (attendeesRequired && !hasExpectedAttendees)
+        e.expectedAttendees = 'Expected attendees is required for this resource';
+      if (hasExpectedAttendees && Number(form.expectedAttendees) < 1)
         e.expectedAttendees = 'Must be a positive number';
       if (
         activeResource?.capacity &&
-        form.expectedAttendees &&
+        hasExpectedAttendees &&
         Number(form.expectedAttendees) > activeResource.capacity
       ) {
         e.expectedAttendees = `Exceeds capacity (${activeResource.capacity})`;
@@ -442,7 +449,7 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
       startTime: form.startTime,
       endTime: form.endTime,
       purpose: form.purpose.trim(),
-      expectedAttendees: form.expectedAttendees ? Number(form.expectedAttendees) : null,
+      expectedAttendees: hasExpectedAttendees ? Number(form.expectedAttendees) : null,
     };
     Promise.resolve(onSubmit(payload)).finally(() => setSubmitting(false));
   };
@@ -896,7 +903,9 @@ export default function BookingForm({ initial = {}, onSubmit, loading, submitLab
 
             {/* Expected Attendees */}
             <div>
-              <label className={labelClass}>Expected Attendees</label>
+              <label className={labelClass}>
+                Expected Attendees{attendeesRequired ? ' *' : ''}
+              </label>
               <input
                 type="number"
                 className={inputClass}
