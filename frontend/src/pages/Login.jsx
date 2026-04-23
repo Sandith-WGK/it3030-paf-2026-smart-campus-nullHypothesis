@@ -39,7 +39,7 @@ const Login = () => {
         navigate('/technician/tasks', { replace: true });
         return;
       } else if (data.role?.toUpperCase() === 'ADMIN') {
-        navigate('/admin/users', { replace: true });
+        navigate('/dashboard', { replace: true });
         return;
       } else {
         // Default redirect for other roles (User, Student, etc.)

@@ -44,6 +44,12 @@ public class Booking {
     @NotBlank(message = "User ID is required")
     private String userId;             // ref to users collection
 
+    // Immutable audit snapshots captured at booking creation time.
+    private String resourceNameSnapshot;
+    private String resourceLocationSnapshot;
+    private String userNameSnapshot;
+    private String userEmailSnapshot;
+
     @NotNull(message = "Booking date is required")
     private LocalDate date;
 

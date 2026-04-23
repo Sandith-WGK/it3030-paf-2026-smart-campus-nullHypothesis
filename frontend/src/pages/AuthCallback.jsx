@@ -38,7 +38,7 @@ const AuthCallback = () => {
            navigate('/technician/tasks', { replace: true });
         return; 
         } else if (decoded.role?.toUpperCase() === 'ADMIN') {
-           navigate('/admin/users', { replace: true });
+           navigate('/dashboard', { replace: true });
            return;
         } else {
           // Default path for all other users

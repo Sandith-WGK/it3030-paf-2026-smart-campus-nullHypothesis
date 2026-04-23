@@ -461,6 +461,8 @@ class BookingResourceIntegrationTest {
                     .id("b-orphan")
                     .resourceId("res-deleted")
                     .userId(USER_ID)
+                    .resourceNameSnapshot("Old Networking Lab")
+                    .userNameSnapshot("Integration Tester")
                     .date(FUTURE_DATE)
                     .startTime(LocalTime.of(10, 0))
                     .endTime(LocalTime.of(11, 0))
@@ -473,7 +475,8 @@ class BookingResourceIntegrationTest {
 
             BookingResponse result = bookingService.getBookingById("b-orphan", USER_ID, false);
 
-            assertThat(result.getResourceName()).isEqualTo("Unknown Resource");
+            assertThat(result.getResourceName()).isEqualTo("Old Networking Lab");
+            assertThat(result.isResourceRecordDeleted()).isTrue();
         }
     }
 }

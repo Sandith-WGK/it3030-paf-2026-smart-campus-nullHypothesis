@@ -26,6 +26,15 @@ import BookingAnalyticsPanel from '../../components/booking/BookingAnalyticsPane
 const PAGE_SIZE = 20;
 const BUSINESS_TIMEZONE = 'Asia/Colombo';
 
+function parseFiltersFromSearch(search) {
+  const params = new URLSearchParams(search);
+  const status = params.get('status') || undefined;
+  const resourceId = params.get('resourceId') || undefined;
+  const userId = params.get('userId') || undefined;
+  const date = params.get('date') || undefined;
+  return { status, resourceId, userId, date };
+}
+
 function todayInTimezone(timeZone) {
   const now = new Date();
   const parts = new Intl.DateTimeFormat('en-CA', {
@@ -54,7 +63,7 @@ export default function AdminBookings() {
   const location = useLocation();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({});
+  const [filters, setFilters] = useState(() => parseFiltersFromSearch(location.search));
   const [toast, setToast] = useState(null);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [page, setPage] = useState(0);
@@ -97,6 +106,11 @@ export default function AdminBookings() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    setFilters(parseFiltersFromSearch(location.search));
+    setPage(0);
+  }, [location.search]);
 
   useEffect(() => {
     // Keep only IDs that are still visible and pending on the current page.
@@ -417,12 +431,26 @@ export default function AdminBookings() {
                         <td className="px-4 py-3">
                           <div className="min-w-0">
                             <p className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">{b.resourceName}</p>
+                            {b.resourceRecordDeleted && (
+                              <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                                record deleted
+                              </p>
+                            )}
                             {b.rejectionReason && b.status === 'REJECTED' && (
                               <p className="mt-1 text-xs text-red-500 dark:text-red-400">{b.rejectionReason}</p>
                             )}
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">{b.userName}</td>
+                        <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">
+                          <div className="min-w-0">
+                            <p className="truncate">{b.userName}</p>
+                            {b.userRecordDeleted && (
+                              <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                                record deleted
+                              </p>
+                            )}
+                          </div>
+                        </td>
                         <td className="px-4 py-3">
                           <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-300">
                             <CalendarDays size={12} /> {b.date}

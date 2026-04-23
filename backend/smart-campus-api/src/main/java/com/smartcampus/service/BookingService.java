@@ -43,6 +43,7 @@ public class BookingService {
     public BookingResponse createBooking(BookingRequest request, String userId) {
         Resource resource = resourceRepository.findById(request.getResourceId())
                 .orElseThrow(() -> new ResourceNotFoundException("Resource", "id", request.getResourceId()));
+        User user = userRepository.findById(userId).orElse(null);
 
         validateResourceAvailability(resource);
         validateTimeRange(request.getStartTime(), request.getEndTime());
@@ -55,6 +56,10 @@ public class BookingService {
         Booking booking = Booking.builder()
                 .resourceId(request.getResourceId())
                 .userId(userId)
+                .resourceNameSnapshot(resource.getName())
+                .resourceLocationSnapshot(resource.getLocation())
+                .userNameSnapshot(user != null ? user.getName() : null)
+                .userEmailSnapshot(user != null ? user.getEmail() : null)
                 .date(request.getDate())
                 .startTime(request.getStartTime())
                 .endTime(request.getEndTime())
@@ -64,7 +69,6 @@ public class BookingService {
                 .build();
 
         Booking saved = bookingRepository.save(booking);
-        User user = userRepository.findById(userId).orElse(null);
         
         // Notify all admins about the new booking
         List<User> admins = userRepository.findByRole(Role.ADMIN);

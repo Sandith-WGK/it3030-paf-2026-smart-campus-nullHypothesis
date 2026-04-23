@@ -37,7 +37,7 @@ const VerifyTwoFactor = () => {
       login(data.token);
 
       if (data.role === 'ADMIN') {
-        navigate('/admin/users', { replace: true });
+        navigate('/dashboard', { replace: true });
       } else {
         navigate('/dashboard', { replace: true });
       }
