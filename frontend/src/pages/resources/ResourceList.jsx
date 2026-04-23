@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
 import FavoritesList from '../../components/common/FavoritesList';
+import { SkeletonGrid } from '../../components/common/Skeleton'; // Import SkeletonGrid
 
 // Constants for resource types
 const RESOURCE_TYPES = {
@@ -151,6 +152,57 @@ const ResourceCard = ({ resource, viewMode, onClick }) => {
         </span>
       </div>
     </Motion.div>
+  );
+};
+
+// Loading Skeleton for Resource Cards
+const ResourceSkeletonGrid = () => {
+  return (
+    <div className="grid gap-5 md:grid-cols-2">
+      {[...Array(6)].map((_, index) => (
+        <Motion.div
+          key={index}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: index * 0.05 }}
+          className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-5 shadow-sm"
+        >
+          {/* Header skeleton */}
+          <div className="flex items-start justify-between mb-3">
+            <div className="flex items-start gap-3 flex-1">
+              <div className="w-10 h-10 rounded-xl bg-zinc-200 dark:bg-zinc-700 animate-pulse" />
+              <div className="flex-1">
+                <div className="h-5 bg-zinc-200 dark:bg-zinc-700 rounded-lg w-3/4 animate-pulse" />
+                <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded-lg w-1/2 mt-1.5 animate-pulse" />
+              </div>
+            </div>
+            <div className="w-16 h-6 bg-zinc-200 dark:bg-zinc-700 rounded-full animate-pulse" />
+          </div>
+          
+          {/* Details skeleton */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
+              <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded-lg w-28 animate-pulse" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
+              <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded-lg w-32 animate-pulse" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
+              <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded-lg w-24 animate-pulse" />
+            </div>
+          </div>
+          
+          {/* Description skeleton */}
+          <div className="mt-4 pt-3 border-t border-zinc-100 dark:border-zinc-800">
+            <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded-lg w-full animate-pulse" />
+            <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded-lg w-5/6 mt-2 animate-pulse" />
+          </div>
+        </Motion.div>
+      ))}
+    </div>
   );
 };
 
@@ -398,13 +450,80 @@ const ResourceList = () => {
     active: resources.filter(r => r.status === 'ACTIVE').length,
   };
 
+  // Show loading skeleton
   if (loading) {
     return (
       <Layout title="Browse Resources">
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="flex flex-col items-center gap-3">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-violet-600 dark:border-violet-400"></div>
-            <p className="text-zinc-500 dark:text-zinc-400 text-sm">Loading resources...</p>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Main Content Skeleton */}
+            <div className="lg:col-span-3 space-y-6">
+              {/* Hero Section Skeleton */}
+              <div className="bg-gradient-to-r from-violet-50 to-indigo-50 dark:from-violet-500/10 dark:to-indigo-500/10 rounded-2xl p-6 border border-violet-100 dark:border-violet-500/20">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="h-8 bg-zinc-200 dark:bg-zinc-700 rounded-lg w-64 animate-pulse" />
+                    <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded-lg w-96 mt-2 animate-pulse" />
+                    <div className="flex items-center gap-2 mt-4">
+                      <div className="w-3 h-3 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
+                      <div className="h-3 bg-zinc-200 dark:bg-zinc-700 rounded-lg w-32 animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="w-12 h-12 bg-zinc-200 dark:bg-zinc-700 rounded-full animate-pulse hidden sm:block" />
+                </div>
+              </div>
+
+              {/* Search Bar Skeleton */}
+              <div className="relative">
+                <div className="w-full h-12 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl animate-pulse" />
+              </div>
+
+              {/* Results Header Skeleton */}
+              <div className="flex justify-between items-center pb-2">
+                <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded-lg w-40 animate-pulse" />
+              </div>
+
+              {/* Resources Grid Skeleton */}
+              <ResourceSkeletonGrid />
+            </div>
+
+            {/* Sidebar Skeleton */}
+            <div className="lg:col-span-1 space-y-6">
+              {/* Stats Overview Skeleton */}
+              <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-4 h-4 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
+                  <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded-lg w-20 animate-pulse" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="h-16 bg-zinc-100 dark:bg-zinc-800 rounded-lg animate-pulse" />
+                  <div className="h-16 bg-zinc-100 dark:bg-zinc-800 rounded-lg animate-pulse" />
+                </div>
+              </div>
+
+              {/* Quick Links Skeleton */}
+              <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-4 h-4 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
+                  <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded-lg w-24 animate-pulse" />
+                </div>
+                <div className="h-12 bg-zinc-100 dark:bg-zinc-800 rounded-lg animate-pulse" />
+              </div>
+
+              {/* Recently Viewed Skeleton */}
+              <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+                <div className="p-4 border-b border-zinc-100 dark:border-zinc-800">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-zinc-200 dark:bg-zinc-700 rounded animate-pulse" />
+                    <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded-lg w-32 animate-pulse" />
+                  </div>
+                </div>
+                <div className="p-8 text-center">
+                  <div className="w-8 h-8 bg-zinc-200 dark:bg-zinc-700 rounded-full mx-auto mb-3 animate-pulse" />
+                  <div className="h-4 bg-zinc-200 dark:bg-zinc-700 rounded-lg w-32 mx-auto animate-pulse" />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </Layout>
