@@ -258,14 +258,7 @@ export default function Settings() {
               description="Login & password change alerts" 
               color="red" 
             />
-            <CategoryCard 
-              enabled={notifPrefs.announcements} 
-              onClick={() => handleToggleCategory('announcements')} 
-              icon={Megaphone} 
-              label="Announcements" 
-              description="Campus-wide announcements" 
-              color="green" 
-            />
+
             <CategoryCard 
               enabled={notifPrefs.resources} 
               onClick={() => handleToggleCategory('resources')} 
