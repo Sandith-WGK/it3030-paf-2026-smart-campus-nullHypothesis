@@ -45,6 +45,7 @@ export default function BookingDetail() {
   const [cancelOpen, setCancelOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [verifyToken, setVerifyToken] = useState('');
   const admin = isAdmin();
 
   useEffect(() => {
@@ -54,6 +55,16 @@ export default function BookingDetail() {
       .then(async (res) => {
         const b = res.data?.data ?? res.data;
         setBooking(b);
+        if (b?.status === 'APPROVED') {
+          try {
+            const tokenRes = await bookingService.getVerifyToken(b.id);
+            setVerifyToken(tokenRes.data?.data ?? '');
+          } catch {
+            setVerifyToken('');
+          }
+        } else {
+          setVerifyToken('');
+        }
         // Load approved bookings for the same resource+date to render the timeline
         try {
           const sibRes = await bookingService.getResourceSchedule(b.resourceId, b.date);
@@ -209,7 +220,11 @@ export default function BookingDetail() {
               <div className="flex flex-col sm:flex-row items-center gap-4">
                 <div className="bg-white p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 shadow-sm">
                   <QRCodeSVG
-                    value={`${window.location.origin}/verify-booking/${booking.id}`}
+                    value={
+                      verifyToken
+                        ? `${window.location.origin}/verify-booking?token=${encodeURIComponent(verifyToken)}`
+                        : `${window.location.origin}/verify-booking/${booking.id}`
+                    }
                     size={160}
                     level="H"
                     includeMargin={false}

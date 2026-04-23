@@ -1,17 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { Loader2, CheckCircle2, XCircle, CalendarDays, Clock, MapPin, User } from 'lucide-react';
 import bookingService from '../../services/api/bookingService';
 
 export default function VerifyBooking() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token');
   const [state, setState] = useState('loading'); // 'loading' | 'success' | 'error'
   const [booking, setBooking] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    bookingService
-      .verifyBooking(id)
+    const request = token
+      ? bookingService.verifyBookingPublic(token)
+      : bookingService.verifyBooking(id);
+    request
       .then((res) => {
         const b = res.data?.data ?? res.data;
         setBooking(b);
@@ -24,7 +28,7 @@ export default function VerifyBooking() {
         setErrorMessage(msg);
         setState('error');
       });
-  }, [id]);
+  }, [id, token]);
 
   return (
     <div className="min-h-dvh flex items-center justify-center bg-zinc-50 dark:bg-zinc-950 px-4">
@@ -43,7 +47,7 @@ export default function VerifyBooking() {
         {state === 'success' && booking && (
           <div className="rounded-2xl border border-green-200 dark:border-green-500/30 bg-white dark:bg-zinc-900 shadow-xl overflow-hidden animate-in fade-in">
             {/* Green header */}
-            <div className="bg-gradient-to-br from-green-500 to-emerald-600 px-6 py-8 flex flex-col items-center gap-3">
+            <div className="bg-linear-to-br from-green-500 to-emerald-600 px-6 py-8 flex flex-col items-center gap-3">
               <CheckCircle2 size={72} className="text-white drop-shadow-lg" />
               <h1 className="text-2xl font-extrabold text-white tracking-tight">
                 VALID BOOKING
@@ -97,7 +101,7 @@ export default function VerifyBooking() {
         {state === 'error' && (
           <div className="rounded-2xl border border-red-200 dark:border-red-500/30 bg-white dark:bg-zinc-900 shadow-xl overflow-hidden animate-in fade-in">
             {/* Red header */}
-            <div className="bg-gradient-to-br from-red-500 to-rose-600 px-6 py-8 flex flex-col items-center gap-3">
+            <div className="bg-linear-to-br from-red-500 to-rose-600 px-6 py-8 flex flex-col items-center gap-3">
               <XCircle size={72} className="text-white drop-shadow-lg" />
               <h1 className="text-2xl font-extrabold text-white tracking-tight">
                 INVALID OR EXPIRED

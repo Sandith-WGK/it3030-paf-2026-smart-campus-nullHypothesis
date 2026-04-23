@@ -171,6 +171,8 @@ export default function MyBookings() {
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'calendar'
   const [calendarFilter, setCalendarFilter] = useState(null); // date string from calendar click
   const [toast, setToast] = useState(null);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
 
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelLoading, setCancelLoading] = useState(false);
@@ -180,14 +182,16 @@ export default function MyBookings() {
   const load = useCallback(() => {
     setLoading(true);
     bookingService
-      .getMyBookings(activeTab)
+      .getMyBookings(activeTab, page, 20)
       .then((res) => {
         const raw = res.data?.data ?? res.data;
-        setBookings(Array.isArray(raw) ? raw : []);
+        const rows = Array.isArray(raw?.content) ? raw.content : Array.isArray(raw) ? raw : [];
+        setBookings(rows);
+        setHasMore(Boolean(raw?.hasNext));
       })
       .catch(() => setToast({ type: 'error', message: 'Failed to load bookings' }))
       .finally(() => setLoading(false));
-  }, [activeTab]);
+  }, [activeTab, page]);
 
   useEffect(() => {
     load();
@@ -196,6 +200,7 @@ export default function MyBookings() {
   // Clear calendar filter when switching tabs or view modes
   useEffect(() => {
     setCalendarFilter(null);
+    setPage(0);
   }, [activeTab, viewMode]);
 
   const handleCancel = async () => {
@@ -406,6 +411,32 @@ export default function MyBookings() {
       />
 
       <Toast toast={toast} onClose={() => setToast(null)} />
+
+      {!loading && viewMode === 'list' && bookings.length > 0 && (
+        <div className="mt-5 flex items-center justify-between">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Page {page + 1}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={page === 0}
+              className="px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              Previous
+            </button>
+            <button
+              type="button"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={!hasMore}
+              className="px-3 py-1.5 text-xs rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }
