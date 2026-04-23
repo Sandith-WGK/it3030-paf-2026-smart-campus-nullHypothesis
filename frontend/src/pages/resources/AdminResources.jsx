@@ -84,6 +84,37 @@ const EmptyState = ({ hasFilters, onClearFilters, onAddResource }) => (
 );
 
 /**
+ * Stat Card Component
+ */
+const StatCard = ({ title, value, icon: Icon, color }) => {
+  const colorClasses = {
+    violet: 'from-violet-500 to-violet-600',
+    emerald: 'from-emerald-500 to-emerald-600',
+    rose: 'from-rose-500 to-rose-600',
+  };
+
+  return (
+    <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
+      <div className="p-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+              {title}
+            </p>
+            <p className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">
+              {value}
+            </p>
+          </div>
+          <div className={`p-3 rounded-xl bg-gradient-to-br ${colorClasses[color]} bg-opacity-10`}>
+            {React.createElement(Icon, { size: 20, className: "text-white" })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/**
  * Helper function to parse CSV line (handles quoted values)
  */
 const parseCSVLine = (line) => {
@@ -199,6 +230,11 @@ const AdminResources = () => {
   useEffect(() => {
     fetchResources();
   }, [fetchResources]);
+
+  // Calculate statistics
+  const totalResources = resources.length;
+  const activeResources = resources.filter(r => r.status === 'ACTIVE').length;
+  const outOfServiceResources = resources.filter(r => r.status === 'OUT_OF_SERVICE').length;
 
   // Filter resources
   const filteredResources = resources.filter(resource => {
@@ -548,6 +584,28 @@ const AdminResources = () => {
           <p className="text-zinc-500 dark:text-zinc-400 mt-1 text-sm">
             Manage campus facilities, labs, rooms, and equipment
           </p>
+        </div>
+
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <StatCard 
+            title="Total Resources" 
+            value={totalResources} 
+            icon={Building2} 
+            color="violet"
+          />
+          <StatCard 
+            title="Active Resources" 
+            value={activeResources} 
+            icon={CheckCircle} 
+            color="emerald"
+          />
+          <StatCard 
+            title="Out of Service" 
+            value={outOfServiceResources} 
+            icon={PowerOff} 
+            color="rose"
+          />
         </div>
 
         {/* Action Bar */}

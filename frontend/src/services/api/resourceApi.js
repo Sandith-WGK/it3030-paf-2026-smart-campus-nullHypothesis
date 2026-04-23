@@ -2,6 +2,7 @@ import api from './axios';
 
 const BASE = '/resources';
 const ADMIN_BASE = '/admin';
+const FAVORITES_BASE = '/favorites';
 
 /**
  * Resource API service for Module A - Facilities & Assets Catalogue
@@ -56,10 +57,7 @@ const resourceApi = {
         responseType: 'blob',
       });
       
-      // Create a blob from the response
       const blob = new Blob([response.data], { type: 'text/csv' });
-      
-      // Create a download link
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -96,6 +94,46 @@ const resourceApi = {
       throw error;
     }
   },
+
+  // ========== FAVORITES / BOOKMARKS ==========
+
+  /**
+   * Get all favorites for current user
+   * @returns {Promise} List of favorite resources
+   */
+  getFavorites: () => api.get(FAVORITES_BASE),
+
+  /**
+   * Add a resource to favorites
+   * @param {String} resourceId - Resource ID to favorite
+   */
+  addFavorite: (resourceId) => api.post(`${FAVORITES_BASE}/${resourceId}`),
+
+  /**
+   * Remove a resource from favorites
+   * @param {String} resourceId - Resource ID to remove
+   */
+  removeFavorite: (resourceId) => api.delete(`${FAVORITES_BASE}/${resourceId}`),
+
+  /**
+   * Check if a resource is favorited by current user
+   * @param {String} resourceId - Resource ID to check
+   * @returns {Promise<boolean>} True if favorited
+   */
+  checkFavorite: async (resourceId) => {
+    try {
+      const response = await api.get(`${FAVORITES_BASE}/check/${resourceId}`);
+      return response.data.isFavorite;
+    } catch (error) {
+      console.error('Check favorite error:', error);
+      return false;
+    }
+  },
+
+  /**
+   * Clear all favorites for current user
+   */
+  clearAllFavorites: () => api.delete(FAVORITES_BASE),
 };
 
 export default resourceApi;

@@ -28,6 +28,7 @@ import ResourceList from './pages/resources/ResourceList';
 import ResourceDetail from './pages/resources/ResourceDetail';
 import ResourceForm from './pages/resources/ResourceForm';
 import AdminResources from './pages/resources/AdminResources';
+import MyFavorites from './pages/MyFavorites';
 
 // Ticket pages
 import MyTicketsPage from './pages/tickets/MyTicketsPage';
@@ -140,6 +141,9 @@ function App() {
       {/* Resource routes (USER + ADMIN) */}
       <Route path="/resources" element={<PrivateRoute><ResourceList /></PrivateRoute>} />
       <Route path="/resources/:id" element={<PrivateRoute><ResourceDetail /></PrivateRoute>} />
+
+      {/* My Favorites Route*/}
+      <Route path="/my-favorites" element={<PrivateRoute><MyFavorites /></PrivateRoute>} />
        
       {/* Ticket routes (USER + ADMIN) */}
       <Route path="/tickets" element={<PrivateRoute><MyTicketsPage /></PrivateRoute>} />

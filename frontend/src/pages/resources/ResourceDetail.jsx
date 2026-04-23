@@ -4,11 +4,13 @@ import { motion as Motion, AnimatePresence } from 'framer-motion';
 import resourceApi from '../../services/api/resourceApi';
 import { isAdmin } from '../../utils/auth';
 import { useRecentlyViewed } from '../../hooks/useRecentlyViewed';
+import { useFavorites } from '../../hooks/useFavorites';
 import { 
   ArrowLeft, MapPin, Users, Clock, Calendar, Edit, Trash2,
   Building2, FlaskConical, DoorOpen, Wrench, AlertCircle,
   CheckCircle, XCircle, Clock as ClockIcon, Share2, Printer,
-  Copy, Check, ExternalLink, Calendar as CalendarIcon, Award
+  Copy, Check, ExternalLink, Calendar as CalendarIcon, Award,
+  Heart
 } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
 import RecentlyViewed from '../../components/common/RecentlyViewed';
@@ -21,12 +23,14 @@ const ResourceDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToRecentlyViewed } = useRecentlyViewed();
+  const { addFavorite, removeFavorite, isFavorite } = useFavorites();
   const [resource, setResource] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isFav, setIsFav] = useState(false);
   const adminStatus = isAdmin();
 
   const fetchResource = useCallback(async () => {
@@ -37,13 +41,17 @@ const ResourceDetail = () => {
       const resourceData = response.data.data;
       setResource(resourceData);
       addToRecentlyViewed(resourceData);
+      
+      // Check if resource is favorited
+      const favStatus = await isFavorite(id);
+      setIsFav(favStatus);
     } catch (err) {
       setError('Failed to load resource details. Please try again.');
       console.error('Error fetching resource:', err);
     } finally {
       setLoading(false);
     }
-  }, [id, addToRecentlyViewed]);
+  }, [id, addToRecentlyViewed, isFavorite]);
 
   useEffect(() => {
     fetchResource();
@@ -83,6 +91,16 @@ const ResourceDetail = () => {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleToggleFavorite = async () => {
+    if (isFav) {
+      await removeFavorite(id);
+      setIsFav(false);
+    } else {
+      await addFavorite(id);
+      setIsFav(true);
+    }
   };
 
   const getStatusConfig = (status) => {
@@ -217,8 +235,22 @@ const ResourceDetail = () => {
                       </div>
                     </div>
 
-                    {/* Action Buttons */}
+                    {/* Action Buttons - Including Favorite */}
                     <div className="flex gap-2">
+                      {/* Favorite Button */}
+                      <button
+                        onClick={handleToggleFavorite}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all text-sm font-medium ${
+                          isFav 
+                            ? 'bg-red-50 text-red-500 dark:bg-red-500/10 dark:text-red-400 border border-red-200 dark:border-red-500/20' 
+                            : 'bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-red-50 hover:text-red-500 hover:border-red-200'
+                        }`}
+                        title={isFav ? 'Remove from favorites' : 'Add to favorites'}
+                      >
+                        <Heart size={14} fill={isFav ? 'currentColor' : 'none'} />
+                        <span className="hidden sm:inline">{isFav ? 'Favorited' : 'Favorite'}</span>
+                      </button>
+                      
                       <button
                         onClick={handleShare}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-700 transition-all text-sm font-medium"
