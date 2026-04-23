@@ -13,7 +13,10 @@ const Login = () => {
   const { login } = useAuth();
 
   const handleGoogleLogin = () => {
-    window.location.href = 'http://localhost:8081/oauth2/authorize/google';
+    const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api/v1';
+    const oauthBaseRaw = import.meta.env.VITE_OAUTH_BASE_URL || apiBase.replace(/\/api\/v1\/?$/, '');
+    const oauthBase = oauthBaseRaw.endsWith('/') ? oauthBaseRaw.slice(0, -1) : oauthBaseRaw;
+    window.location.href = `${oauthBase}/oauth2/authorize/google`;
   };
 
   const handleStandardLogin = async (e) => {

@@ -170,15 +170,15 @@ public class BookingController {
     // Cancel an APPROVED booking. Users can cancel their own; admins can cancel any.
 
     @PatchMapping("/{id}/cancel")
-    public ResponseEntity<ApiResponse<BookingResponse>> cancelBooking(
+    public ResponseEntity<Void> cancelBooking(
             @PathVariable String id,
             @AuthenticationPrincipal UserPrincipal principal) {
 
         boolean isAdmin = principal.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
-        BookingResponse response = bookingService.cancelBooking(id, principal.getId(), isAdmin);
-        return ResponseEntity.ok(ApiResponse.success("Booking cancelled successfully", response));
+        bookingService.cancelBooking(id, principal.getId(), isAdmin);
+        return ResponseEntity.noContent().build();
     }
 
     // ── DELETE /api/v1/bookings/{id} ─────────────────────────────────────────
@@ -188,7 +188,7 @@ public class BookingController {
     // (satisfies the Uniform Interface REST constraint).
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteBooking(
+    public ResponseEntity<Void> deleteBooking(
             @PathVariable String id,
             @AuthenticationPrincipal UserPrincipal principal) {
 
@@ -196,7 +196,7 @@ public class BookingController {
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
         bookingService.deleteBooking(id, principal.getId(), isAdmin);
-        return ResponseEntity.ok(ApiResponse.success("Booking deleted successfully", null));
+        return ResponseEntity.noContent().build();
     }
 
     // ── GET /api/v1/bookings/analytics ─────────────────────────────────────────
