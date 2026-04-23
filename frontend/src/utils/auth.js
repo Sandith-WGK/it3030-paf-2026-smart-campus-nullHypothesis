@@ -24,11 +24,11 @@ export function getUserRole() {
 }
 
 export function isAdmin() {
-  return getUserRole() === 'ADMIN';
+  return getUserRole()?.toUpperCase() === 'ADMIN';
 }
 
 export function isTechnician() {
-  return getUserRole() === 'TECHNICIAN';
+  return getUserRole()?.toUpperCase() === 'TECHNICIAN';
 }
 
 export function isAuthenticated() {

@@ -5,6 +5,12 @@ import com.smartcampus.model.Role;
 import com.smartcampus.model.Severity;
 import com.smartcampus.model.User;
 import com.smartcampus.repository.UserRepository;
+import com.smartcampus.repository.BookingRepository;
+import com.smartcampus.repository.TicketRepository;
+import com.smartcampus.model.Booking;
+import com.smartcampus.model.BookingStatus;
+import com.smartcampus.model.Ticket;
+import com.smartcampus.model.TicketStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -23,20 +29,47 @@ public class UserService {
     private final EmailService emailService;
     private final NotificationService notificationService;
     private final UserActivityService userActivityService;
+    private final BookingRepository bookingRepository;
+    private final TicketRepository ticketRepository;
 
     @Autowired
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, 
                        EmailService emailService, NotificationService notificationService,
-                       UserActivityService userActivityService) {
+                       UserActivityService userActivityService,
+                       BookingRepository bookingRepository,
+                       TicketRepository ticketRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
         this.notificationService = notificationService;
         this.userActivityService = userActivityService;
+        this.bookingRepository = bookingRepository;
+        this.ticketRepository = ticketRepository;
     }
 
     public List<User> getAllUsers() {
-        return userRepository.findAll();
+        // Only return active, non-deleted users for the management panel
+        List<User> users = userRepository.findAll().stream()
+                .filter(u -> !u.isDeleted())
+                .collect(java.util.stream.Collectors.toList());
+        
+        boolean changed = false;
+        
+        for (User user : users) {
+            if (user.getRole() == Role.TECHNICIAN && (user.getTechnicianId() == null || user.getTechnicianId().isBlank())) {
+                long techCount = userRepository.countByRole(Role.TECHNICIAN);
+                user.setTechnicianId(String.format("TECH-%03d", techCount + 1));
+                userRepository.save(user);
+                changed = true;
+            } else if (user.getRole() != Role.TECHNICIAN && user.getTechnicianId() != null) {
+                // Cleanup: Clear IDs if role was downgraded without clearing ID
+                user.setTechnicianId(null);
+                userRepository.save(user);
+                changed = true;
+            }
+        }
+        
+        return changed ? getAllUsers() : users; // Recursive call to get refreshed list if count changed
     }
 
     public User getUserById(String id) {
@@ -55,6 +88,11 @@ public class UserService {
                 .name(name)
                 .role(role != null ? role : Role.USER)
                 .createdAt(Instant.now());
+
+        if (role == Role.TECHNICIAN) {
+            long techCount = userRepository.countByRole(Role.TECHNICIAN);
+            builder.technicianId(String.format("TECH-%03d", techCount + 1));
+        }
 
         if (password != null && !password.isBlank()) {
             // Admin is creating a LOCAL user with a password
@@ -117,6 +155,16 @@ public class UserService {
             // Role can be changed for both LOCAL and GOOGLE users
             if (role != null) {
                 user.setRole(role);
+                // Clear technicianId if the user is no longer a technician
+                if (role != Role.TECHNICIAN) {
+                    user.setTechnicianId(null);
+                }
+            }
+
+            // Auto-generate ID if user becomes a technician and doesn't have one
+            if (user.getRole() == Role.TECHNICIAN && (user.getTechnicianId() == null || user.getTechnicianId().isBlank())) {
+                long techCount = userRepository.countByRole(Role.TECHNICIAN);
+                user.setTechnicianId(String.format("TECH-%03d", techCount + 1));
             }
             
             // Handle Profile Picture
@@ -251,6 +299,41 @@ public class UserService {
     }
 
     public void deleteUser(String id) {
-        userRepository.deleteById(id);
+        User user = getUserById(id);
+        
+        // 1. Soft Delete the User
+        user.setDeleted(true);
+        user.setEnabled(false);
+        user.setDeletedAt(Instant.now());
+        userRepository.save(user);
+
+        // 2. Booking Cleanup: Cancel all future bookings
+        java.time.LocalDate today = java.time.LocalDate.now();
+        java.time.LocalTime now = java.time.LocalTime.now();
+        
+        List<Booking> futureBookings = bookingRepository.findByUserId(id).stream()
+                .filter(b -> b.getDate().isAfter(today) || 
+                           (b.getDate().isEqual(today) && b.getStartTime().isAfter(now)))
+                .filter(b -> b.getStatus() == BookingStatus.APPROVED || b.getStatus() == BookingStatus.PENDING)
+                .collect(java.util.stream.Collectors.toList());
+        
+        for (Booking booking : futureBookings) {
+            booking.setStatus(BookingStatus.REJECTED);
+            booking.setRejectionReason("User account deleted/deactivated.");
+            bookingRepository.save(booking);
+        }
+
+        // 3. Ticket Cleanup
+        // Unassign tickets assigned to this technician
+        List<Ticket> assignedTickets = ticketRepository.findByAssigneeId(id);
+        for (Ticket ticket : assignedTickets) {
+            ticket.setAssigneeId(null);
+            if (ticket.getStatus() == TicketStatus.IN_PROGRESS) {
+                ticket.setStatus(TicketStatus.OPEN);
+            }
+            ticketRepository.save(ticket);
+        }
+
+        System.out.println("DEBUG: Safe deleted user (Soft Delete performed): " + id);
     }
 }

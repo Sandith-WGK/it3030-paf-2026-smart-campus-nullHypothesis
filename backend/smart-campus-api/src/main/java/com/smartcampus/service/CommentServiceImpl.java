@@ -6,11 +6,13 @@ import com.smartcampus.exception.TicketNotFoundException;
 import com.smartcampus.exception.CommentNotFoundException;
 import com.smartcampus.exception.UnauthorizedActionException;
 import com.smartcampus.model.Comment;
+import com.smartcampus.model.Ticket;
 import com.smartcampus.repository.CommentRepository;
 import com.smartcampus.repository.TicketRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 import com.smartcampus.model.Ticket;
@@ -41,7 +43,13 @@ public class CommentServiceImpl implements CommentService {
                 .build();
 
         Comment savedComment = commentRepository.save(comment);
-
+        
+        // If commenter is NOT the reporter and ticket hasn't been responded to yet, set firstResponseAt
+        if (!authorId.equals(ticket.getReporterId()) && ticket.getFirstResponseAt() == null) {
+            ticket.setFirstResponseAt(Instant.now());
+            ticketRepository.save(ticket);
+        }
+        
         // Notify the relevant party
         User author = userRepository.findById(authorId).orElse(null);
         String authorName = (author != null) ? author.getName() : "A user";

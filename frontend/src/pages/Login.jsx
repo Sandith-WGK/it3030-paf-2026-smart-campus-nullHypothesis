@@ -35,11 +35,14 @@ const Login = () => {
       // Save token and login context
       login(data.token);
 
-      if (data.role === 'TECHNICIAN') {
+      if (data.role?.toUpperCase() === 'TECHNICIAN') {
         navigate('/technician/tasks', { replace: true });
         return;
+      } else if (data.role?.toUpperCase() === 'ADMIN') {
+        navigate('/admin/users', { replace: true });
+        return;
       } else {
-        // Default redirect for other roles (Admin, Student, etc.)
+        // Default redirect for other roles (User, Student, etc.)
         navigate('/dashboard', { replace: true });
       }
     } catch (err) {

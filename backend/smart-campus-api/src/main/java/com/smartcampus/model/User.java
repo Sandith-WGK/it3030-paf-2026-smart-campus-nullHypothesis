@@ -28,6 +28,13 @@ public class User {
     private String email;
 
     private String name;
+    
+    @Builder.Default
+    private boolean deleted = false;
+    
+    private java.time.Instant deletedAt;
+
+    private String technicianId;
 
     private String picture; // Google profile photo URL
 

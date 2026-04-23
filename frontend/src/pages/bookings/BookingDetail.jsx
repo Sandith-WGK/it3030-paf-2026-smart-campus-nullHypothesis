@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { motion as Motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -25,9 +25,19 @@ import bookingService from '../../services/api/bookingService';
 import { isAdmin } from '../../utils/auth';
 import { generateBookingPDF } from '../../utils/pdfExport';
 
+function getTodayLocalIso() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function BookingDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from || '/bookings';
   const [booking, setBooking] = useState(null);
   const [sameResourceBookings, setSameResourceBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,9 +62,9 @@ export default function BookingDetail() {
           // Silently skip timeline if the schedule endpoint fails
         }
       })
-      .catch(() => navigate('/bookings'))
+      .catch(() => navigate(from))
       .finally(() => setLoading(false));
-  }, [id, navigate]);
+  }, [id, navigate, from]);
 
   const handleCancel = async () => {
     setActionLoading(true);
@@ -75,7 +85,7 @@ export default function BookingDetail() {
     try {
       await bookingService.deleteBooking(id);
       setToast({ type: 'success', message: 'Booking deleted' });
-      setTimeout(() => navigate('/bookings'), 800);
+      setTimeout(() => navigate(from), 800);
     } catch (err) {
       setToast({ type: 'error', message: err.response?.data?.message ?? 'Failed to delete' });
     } finally {
@@ -101,7 +111,7 @@ export default function BookingDetail() {
 
   if (!booking) return null;
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayLocalIso();
   const canEdit = booking.status === 'PENDING' && booking.date >= today;
   const canCancel = booking.status === 'APPROVED';
   const canDelete =
@@ -125,11 +135,11 @@ export default function BookingDetail() {
     <Layout title="Booking Details">
       <div className="max-w-2xl mx-auto">
         <button
-          onClick={() => navigate('/bookings')}
+          onClick={() => navigate(from)}
           className="flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 mb-6 transition-colors"
         >
           <ArrowLeft size={16} />
-          Back to My Bookings
+          {from.includes('/admin/bookings') ? 'Back to Manage Bookings' : 'Back to My Bookings'}
         </button>
 
         <Motion.div

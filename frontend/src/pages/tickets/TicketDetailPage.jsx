@@ -95,6 +95,15 @@ export default function TicketDetailPage() {
     }
   };
 
+  const formatDuration = (start, end) => {
+    if (!start || !end) return null;
+    const diff = new Date(end) - new Date(start);
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+  };
+
   if (loading) {
     return <Layout title="Ticket Details"><SkeletonGrid /></Layout>;
   }
@@ -104,7 +113,7 @@ export default function TicketDetailPage() {
   }
 
   return (
-    <Layout title={`Ticket #${ticket.id?.substring(0,6)}`}>
+    <Layout title={`Ticket #${ticket.ticketCode || ticket.id?.substring(0,6)}`}>
       <div className="max-w-5xl mx-auto space-y-8 pb-12">
         
         {/* Header Bar */}
@@ -267,6 +276,27 @@ export default function TicketDetailPage() {
 
           {/* Sidebar / Timeline */}
           <div className="space-y-6">
+            {/* SLA Metrics Section */}
+            {(ticket.firstResponseAt || ticket.resolvedAt) && (
+              <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md p-6 rounded-3xl border border-zinc-200/50 dark:border-zinc-800/50 shadow-lg animate-in fade-in slide-in-from-right-4 duration-500">
+                <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-4">Service Performance</h3>
+                <div className="grid grid-cols-1 gap-4">
+                  {ticket.firstResponseAt && (
+                    <div className="p-4 bg-violet-50 dark:bg-violet-900/10 rounded-2xl border border-violet-100 dark:border-violet-900/30">
+                      <p className="text-[10px] font-bold text-violet-600 dark:text-violet-400 uppercase tracking-widest mb-1">Time to First Response</p>
+                      <p className="text-2xl font-black text-zinc-900 dark:text-zinc-100 tracking-tight">{formatDuration(ticket.createdAt, ticket.firstResponseAt)}</p>
+                    </div>
+                  )}
+                  {ticket.resolvedAt && (
+                    <div className="p-4 bg-emerald-50 dark:bg-emerald-900/10 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
+                      <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1">Time to Resolution</p>
+                      <p className="text-2xl font-black text-zinc-900 dark:text-zinc-100 tracking-tight">{formatDuration(ticket.createdAt, ticket.resolvedAt)}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+            
             <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md p-6 rounded-3xl border border-zinc-200/50 dark:border-zinc-800/50 shadow-lg sticky top-6">
               <h3 className="text-lg font-extrabold text-zinc-900 dark:text-zinc-100 mb-6 bg-clip-text text-transparent bg-gradient-to-r from-violet-600 to-indigo-600 dark:from-violet-400 dark:to-indigo-400">Activity Timeline</h3>
               

@@ -125,7 +125,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DuplicateKeyException.class)
     public ResponseEntity<ApiResponse<Void>> handleDuplicateKey(DuplicateKeyException ex) {
-        // Most common case: unique index collisions (e.g. email already exists)
+        String raw = ex.getMessage() == null ? "" : ex.getMessage();
+        // Booking slot collision (unique_slot): usually occurs during approval race conditions.
+        if (raw.contains("unique_slot") || raw.contains("bookings")) {
+            return ResponseEntity
+                    .status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.error("This slot was just taken by another approved booking. Please refresh and choose a different time."));
+        }
+        // Most common fallback case: unique index collisions (e.g. email already exists)
         return ResponseEntity
                 .status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error("Duplicate value. Please use a different value."));

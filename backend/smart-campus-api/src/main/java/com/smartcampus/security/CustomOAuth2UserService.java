@@ -39,6 +39,9 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         User user;
         if(userOptional.isPresent()) {
             user = userOptional.get();
+            if (user.isDeleted()) {
+                throw new org.springframework.security.oauth2.core.OAuth2AuthenticationException("Your account has been deactivated/deleted. Please contact support.");
+            }
             if(!user.getProvider().equalsIgnoreCase(provider)) {
                 // Same email, different provider handling
                 user.setProvider(provider);

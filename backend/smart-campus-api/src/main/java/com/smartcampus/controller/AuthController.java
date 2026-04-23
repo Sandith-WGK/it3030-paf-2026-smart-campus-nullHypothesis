@@ -266,6 +266,10 @@ public class AuthController {
             return ResponseEntity.ok("If an account exists for " + email + ", you will receive a reset code.");
         }
 
+        if ("GOOGLE".equals(user.getProvider())) {
+            return ResponseEntity.badRequest().body("This account is linked with Google. Please sign in using the Google button.");
+        }
+
         String resetCode = String.valueOf((int)((Math.random() * 900000) + 100000));
         user.setResetCode(resetCode);
         user.setResetCodeExpiresAt(Instant.now().plus(15, ChronoUnit.MINUTES));
@@ -290,6 +294,10 @@ public class AuthController {
             return ResponseEntity.ok("If an account exists for " + email + ", you will receive a reset code.");
         }
 
+        if ("GOOGLE".equals(user.getProvider())) {
+            return ResponseEntity.badRequest().body("This account is linked with Google. Please sign in using the Google button.");
+        }
+
         String resetCode = String.valueOf((int)((Math.random() * 900000) + 100000));
         user.setResetCode(resetCode);
         user.setResetCodeExpiresAt(Instant.now().plus(15, ChronoUnit.MINUTES));
@@ -311,6 +319,10 @@ public class AuthController {
 
         if (user == null) {
             return ResponseEntity.badRequest().body("Error: User not found.");
+        }
+
+        if ("GOOGLE".equals(user.getProvider())) {
+            return ResponseEntity.badRequest().body("Error: Cannot reset password for Google-linked accounts. Please use Google Login.");
         }
 
         if (user.getResetCode() == null || !user.getResetCode().equals(request.getCode())) {

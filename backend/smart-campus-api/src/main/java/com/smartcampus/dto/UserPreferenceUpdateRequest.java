@@ -6,6 +6,7 @@ import lombok.Data;
 @Data
 public class UserPreferenceUpdateRequest {
     private Theme theme;
+    private String language;
     private Boolean enableSounds;
     private Boolean enableEmailNotifications;
     private Boolean enablePushNotifications;

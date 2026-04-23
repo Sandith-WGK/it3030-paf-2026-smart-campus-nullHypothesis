@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ClipboardList, Edit2, X, AlertCircle, MessageSquare, Eye, Trash2 } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
+import { useAuth } from '../../context/AuthContext';
 import { ticketService } from '../../services/api/ticketService';
 import Toast from '../../components/common/Toast';
 import { SkeletonGrid } from '../../components/common/Skeleton';
@@ -13,6 +14,7 @@ import { getUserId } from '../../utils/auth';
 
 export default function TechnicianTasksPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const currentUserId = getUserId();
 
   const [tasks, setTasks] = useState([]);
@@ -109,16 +111,23 @@ export default function TechnicianTasksPage() {
 
   return (
     <Layout title="My Tasks">
-      <div className="mb-8 p-8 rounded-3xl bg-gradient-to-br from-violet-900 to-indigo-900 dark:from-zinc-900 dark:to-zinc-950 text-white shadow-xl relative overflow-hidden">
-        {/* Abstract decorative shapes */}
-        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 rounded-full bg-white opacity-5 blur-3xl"></div>
-        <div className="absolute bottom-0 left-0 -ml-16 -mb-16 w-48 h-48 rounded-full bg-violet-400 opacity-10 blur-2xl"></div>
-        
-        <div className="relative z-10">
-          <h2 className="text-3xl font-extrabold tracking-tight">Assigned Tasks</h2>
-          <p className="text-violet-200 dark:text-zinc-400 mt-2 text-sm font-medium">
-            Manage and resolve maintenance tickets assigned to you. Keep your queue organized.
-          </p>
+      <div className="mb-10">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-gradient-to-r from-violet-600/10 to-indigo-600/10 dark:from-violet-900/20 dark:to-indigo-900/20 p-8 rounded-2xl border border-violet-100 dark:border-violet-900/30">
+          <div>
+            <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-indigo-600 dark:from-violet-400 dark:to-indigo-400 tracking-tight">
+              Assigned Tasks
+            </h2>
+            <div className="flex items-center gap-2 mt-2">
+               <p className="text-zinc-600 dark:text-zinc-400 font-medium">
+                Manage and resolve maintenance tickets assigned to you. Keep your queue organized.
+              </p>
+              {user?.technicianId && (
+                <span className="px-3 py-1 rounded-full bg-violet-600 text-white text-[11px] font-bold tracking-widest shadow-lg shadow-violet-500/20">
+                  {user.technicianId}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -157,7 +166,7 @@ export default function TechnicianTasksPage() {
                       </div>
                       <div className="text-xs text-zinc-400 font-mono mt-1 flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-zinc-300 dark:bg-zinc-600"></span>
-                        #{task.id.substring(0, 8)}
+                        #{task.ticketCode || task.id.substring(0, 8)}
                       </div>
                     </td>
                     <td className="px-6 py-4">

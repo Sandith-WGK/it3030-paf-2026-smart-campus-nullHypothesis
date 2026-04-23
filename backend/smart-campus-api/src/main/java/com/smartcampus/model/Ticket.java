@@ -25,6 +25,8 @@ public class Ticket {
     @Id
     private String id;
 
+    private String ticketCode;
+
     private String resourceId;         
 
     @NotBlank(message = "Reporter ID is required")
@@ -57,5 +59,7 @@ public class Ticket {
     @CreatedDate
     private Instant createdAt;
 
-    private Instant resolvedAt;       
+    private Instant resolvedAt; 
+    
+    private Instant firstResponseAt;
 }
