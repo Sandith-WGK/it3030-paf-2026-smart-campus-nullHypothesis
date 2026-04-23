@@ -5,6 +5,7 @@ import com.smartcampus.dto.booking.BookingRejectRequest;
 import com.smartcampus.dto.booking.BookingRequest;
 import com.smartcampus.dto.booking.BookingResponse;
 import com.smartcampus.dto.booking.BookingUpdateRequest;
+import com.smartcampus.dto.PagedResponse;
 import com.smartcampus.exception.BookingConflictException;
 import com.smartcampus.exception.InvalidBookingStateException;
 import com.smartcampus.exception.ResourceNotFoundException;
@@ -13,7 +14,13 @@ import com.smartcampus.model.*;
 import com.smartcampus.repository.BookingRepository;
 import com.smartcampus.repository.ResourceRepository;
 import com.smartcampus.repository.UserRepository;
+import com.smartcampus.security.BookingVerificationTokenService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
@@ -22,7 +29,6 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,6 +43,8 @@ public class BookingService {
     private final ResourceRepository resourceRepository;
     private final UserRepository userRepository;
     private final NotificationService notificationService;
+    private final BookingVerificationTokenService bookingVerificationTokenService;
+    private final MongoTemplate mongoTemplate;
 
     // ── Create ──────────────────────────────────────────────────────────────
 
@@ -49,6 +57,8 @@ public class BookingService {
         validateTimeRange(request.getStartTime(), request.getEndTime());
         validateNotPastDate(request.getDate());
         validateWithinAvailabilityWindow(resource, request.getStartTime(), request.getEndTime());
+        validateRequiredAttendees(resource, request.getExpectedAttendees());
+        validatePositiveAttendees(request.getExpectedAttendees());
         validateCapacity(resource, request.getExpectedAttendees());
         checkForDuplicateBooking(request.getResourceId(), userId, request.getDate(), request.getStartTime(), request.getEndTime(), null);
         checkForConflicts(request.getResourceId(), request.getDate(), request.getStartTime(), request.getEndTime(), null);
@@ -102,59 +112,25 @@ public class BookingService {
         return BookingResponse.from(booking, resource, user);
     }
 
-    public List<BookingResponse> getMyBookings(String userId, BookingStatus status, int page, int size) {
-        List<Booking> bookings = (status != null)
-                ? bookingRepository.findByUserIdAndStatus(userId, status)
-                : bookingRepository.findByUserId(userId);
-
-        User user = userRepository.findById(userId).orElse(null);
-        Map<String, Resource> resourceMap = buildResourceMap(bookings);
-
-        List<BookingResponse> sorted = bookings.stream()
-                .sorted(Comparator.comparing(Booking::getDate).reversed()
-                        .thenComparing(Comparator.comparing(Booking::getStartTime).reversed()))
-                .map(b -> BookingResponse.from(b, resourceMap.get(b.getResourceId()), user))
-                .collect(Collectors.toList());
-
-        return paginate(sorted, page, size);
+    public PagedResponse<BookingResponse> getMyBookings(String userId, BookingStatus status, int page, int size) {
+        Query query = new Query().addCriteria(Criteria.where("userId").is(userId));
+        if (status != null) {
+            query.addCriteria(Criteria.where("status").is(status));
+        }
+        query.with(Sort.by(Sort.Direction.DESC, "date", "startTime"));
+        return queryBookingsWithPagination(query, page, size, userId);
     }
 
-    public List<BookingResponse> getAllBookings(BookingStatus status, String resourceId,
-                                                String userId, LocalDate date, int page, int size) {
-        List<Booking> bookings;
+    public PagedResponse<BookingResponse> getAllBookings(BookingStatus status, String resourceId,
+                                                         String userId, LocalDate date, int page, int size) {
+        Query query = new Query();
+        if (status != null) query.addCriteria(Criteria.where("status").is(status));
+        if (resourceId != null && !resourceId.isBlank()) query.addCriteria(Criteria.where("resourceId").is(resourceId));
+        if (userId != null && !userId.isBlank()) query.addCriteria(Criteria.where("userId").is(userId));
+        if (date != null) query.addCriteria(Criteria.where("date").is(date));
+        query.with(Sort.by(Sort.Direction.DESC, "createdAt"));
 
-        if (status != null && resourceId != null) {
-            bookings = bookingRepository.findByResourceId(resourceId).stream()
-                    .filter(b -> b.getStatus() == status)
-                    .collect(Collectors.toList());
-        } else if (status != null && userId != null) {
-            bookings = bookingRepository.findByUserIdAndStatus(userId, status);
-        } else if (status != null) {
-            bookings = bookingRepository.findByStatus(status);
-        } else if (resourceId != null) {
-            bookings = bookingRepository.findByResourceId(resourceId);
-        } else if (userId != null) {
-            bookings = bookingRepository.findByUserId(userId);
-        } else {
-            bookings = bookingRepository.findAll();
-        }
-
-        if (date != null) {
-            bookings = bookings.stream()
-                    .filter(b -> b.getDate().equals(date))
-                    .collect(Collectors.toList());
-        }
-
-        Map<String, Resource> resourceMap = buildResourceMap(bookings);
-        Map<String, User> userMap = buildUserMap(bookings);
-
-        List<BookingResponse> sorted = bookings.stream()
-                .sorted(Comparator.comparing(Booking::getCreatedAt,
-                        Comparator.nullsLast(Comparator.reverseOrder())))
-                .map(b -> BookingResponse.from(b, resourceMap.get(b.getResourceId()), userMap.get(b.getUserId())))
-                .collect(Collectors.toList());
-
-        return paginate(sorted, page, size);
+        return queryBookingsWithPagination(query, page, size, null);
     }
 
     // ── Update ───────────────────────────────────────────────────────────────
@@ -177,6 +153,8 @@ public class BookingService {
 
         validateResourceAvailability(resource);
         validateWithinAvailabilityWindow(resource, request.getStartTime(), request.getEndTime());
+        validateRequiredAttendees(resource, request.getExpectedAttendees());
+        validatePositiveAttendees(request.getExpectedAttendees());
         validateCapacity(resource, request.getExpectedAttendees());
         checkForDuplicateBooking(booking.getResourceId(), userId, request.getDate(), request.getStartTime(), request.getEndTime(), bookingId);
         checkForConflicts(booking.getResourceId(), request.getDate(), request.getStartTime(), request.getEndTime(), bookingId);
@@ -209,8 +187,17 @@ public class BookingService {
         checkForConflicts(booking.getResourceId(), booking.getDate(),
                 booking.getStartTime(), booking.getEndTime(), booking.getId());
 
+        // Re-check right before save to reduce TOCTOU window in concurrent admin actions.
+        checkForConflicts(booking.getResourceId(), booking.getDate(),
+                booking.getStartTime(), booking.getEndTime(), booking.getId());
+
         booking.setStatus(BookingStatus.APPROVED);
-        Booking saved = bookingRepository.save(booking);
+        Booking saved;
+        try {
+            saved = bookingRepository.save(booking);
+        } catch (DuplicateKeyException ex) {
+            throw new BookingConflictException("This slot was just approved by another request. Please refresh and try again.");
+        }
 
         String resourceName = resource.getName();
 
@@ -542,6 +529,39 @@ public class BookingService {
         return BookingResponse.from(booking, resource, user);
     }
 
+    public String generateVerifyToken(String bookingId, String userId, boolean isAdmin) {
+        Booking booking = findBookingOrThrow(bookingId);
+        if (!isAdmin && !booking.getUserId().equals(userId)) {
+            throw new UnauthorizedAccessException("You can only generate a QR token for your own booking");
+        }
+        if (booking.getStatus() != BookingStatus.APPROVED) {
+            throw new InvalidBookingStateException("Only approved bookings can be verified via QR");
+        }
+        return bookingVerificationTokenService.generateToken(booking);
+    }
+
+    public BookingResponse verifyBookingByToken(String token) {
+        String bookingId = bookingVerificationTokenService.validateAndGetBookingId(token);
+        Booking booking = findBookingOrThrow(bookingId);
+
+        if (booking.getStatus() != BookingStatus.APPROVED) {
+            throw new InvalidBookingStateException(
+                    String.format("This booking is not valid for check-in (status: %s). Only APPROVED bookings can be verified.",
+                            booking.getStatus()));
+        }
+
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Colombo"));
+        if (!booking.getDate().equals(today)) {
+            throw new InvalidBookingStateException(
+                    String.format("This booking is for %s, but today is %s. Check-in is only allowed on the booking date.",
+                            booking.getDate(), today));
+        }
+
+        Resource resource = resourceRepository.findById(booking.getResourceId()).orElse(null);
+        User user = userRepository.findById(booking.getUserId()).orElse(null);
+        return BookingResponse.from(booking, resource, user);
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private Booking findBookingOrThrow(String bookingId) {
@@ -600,6 +620,22 @@ public class BookingService {
         }
     }
 
+    private void validatePositiveAttendees(Integer expectedAttendees) {
+        if (expectedAttendees == null) {
+            return;
+        }
+        if (expectedAttendees <= 0) {
+            throw new InvalidBookingStateException("Expected attendees must be a positive number");
+        }
+    }
+
+    private void validateRequiredAttendees(Resource resource, Integer expectedAttendees) {
+        // For capacity-based resources (rooms, labs, halls), attendees are mandatory.
+        if (resource.getCapacity() != null && expectedAttendees == null) {
+            throw new InvalidBookingStateException("Expected attendees is required for this resource");
+        }
+    }
+
 
     /**
      * Throws BookingConflictException if the requesting user already has an active
@@ -651,16 +687,40 @@ public class BookingService {
         }
     }
 
-    private <T> List<T> paginate(List<T> list, int page, int size) {
+    private PagedResponse<BookingResponse> queryBookingsWithPagination(Query query, int page, int size, String fixedUserId) {
         if (page < 0) page = 0;
         if (size <= 0) size = 20;
         if (size > 100) size = 100;
-        
-        int from = page * size;
-        if (from >= list.size()) return List.of();
-        
-        int to = Math.min(from + size, list.size());
-        return list.subList(from, to);
+
+        long total = mongoTemplate.count(query, Booking.class);
+        Query paged = query.skip((long) page * size).limit(size);
+        List<Booking> bookings = mongoTemplate.find(paged, Booking.class);
+
+        Map<String, Resource> resourceMap = buildResourceMap(bookings);
+        Map<String, User> userMap;
+        if (fixedUserId != null) {
+            userMap = new java.util.HashMap<>();
+            userMap.put(fixedUserId, userRepository.findById(fixedUserId).orElse(null));
+        } else {
+            userMap = buildUserMap(bookings);
+        }
+
+        List<BookingResponse> rows = bookings.stream()
+                .map(b -> BookingResponse.from(b, resourceMap.get(b.getResourceId()),
+                        fixedUserId != null ? userMap.get(fixedUserId) : userMap.get(b.getUserId())))
+                .collect(Collectors.toList());
+
+        int totalPages = total == 0 ? 0 : (int) Math.ceil((double) total / size);
+        boolean hasNext = (long) (page + 1) * size < total;
+
+        return PagedResponse.<BookingResponse>builder()
+                .content(rows)
+                .page(page)
+                .size(size)
+                .totalElements(total)
+                .totalPages(totalPages)
+                .hasNext(hasNext)
+                .build();
     }
 
     private Map<String, Resource> buildResourceMap(List<Booking> bookings) {
