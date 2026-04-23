@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Save, X, MessageSquare, Edit2, Trash2, XCircle } from 'lucide-react';
+import { Save, X, MessageSquare, Edit2, Trash2, XCircle, Eye} from 'lucide-react';
 import Layout from '../../components/layout/Layout';
 import { ticketService } from '../../services/api/ticketService';
 import { commentService } from '../../services/api/commentService'; 
@@ -32,9 +32,17 @@ export default function AdminTicketsPage() {
 
   // Comment Specific States for Module C
   const [commentModal, setCommentModal] = useState(null);
+  const [detailModal, setDetailModal] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
   const [newComment, setNewComment] = useState('');
   const [activeComments, setActiveComments] = useState([]);
 
+  const getFileUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
+    return `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+  }; 
 
   const loadTickets = useCallback(async () => {
     setLoading(true);
@@ -262,6 +270,9 @@ export default function AdminTicketsPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                       <button onClick={() => setDetailModal(t)} className="p-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 rounded-lg hover:border-violet-300 hover:text-violet-600 transition-all shadow-sm" title="Preview Task">
+                          <Eye size={14} />
+                        </button>
                         <button onClick={() => openCommentModal(t)} className="p-2 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 rounded-lg hover:border-blue-300 hover:text-blue-600 transition-all shadow-sm" title="Comments">
                           <MessageSquare size={14} />
                         </button>
@@ -417,6 +428,63 @@ export default function AdminTicketsPage() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Detail Modal */}
+      {detailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDetailModal(null)}></div>
+          <div className="relative bg-white dark:bg-zinc-900 rounded-3xl p-8 w-full max-w-xl shadow-2xl border border-zinc-200/50 dark:border-zinc-800/50">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-xl font-extrabold">Ticket Preview</h3>
+              <button onClick={() => setDetailModal(null)} className="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"><X size={18} /></button>
+            </div>
+            <div className="space-y-6">
+              <div className="bg-zinc-50 dark:bg-zinc-950/50 p-5 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-2">Problem Description</label>
+                <p className="text-[15px] leading-relaxed text-zinc-800 dark:text-zinc-200 whitespace-pre-wrap mb-4">{detailModal.description}</p>
+                
+                <div className="pt-4 border-t border-zinc-200 dark:border-zinc-800">
+                  <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-1">Contact: {detailModal.preferredContactMethod || 'Other'}</label>
+                  <p className="text-sm font-bold text-violet-600 dark:text-violet-400">
+                    {detailModal.preferredContactMethod === 'EMAIL' ? detailModal.email : (detailModal.preferredContactMethod === 'PHONE' ? detailModal.phoneNumber : detailModal.contactDetails)}
+                  </p>
+                  {detailModal.preferredContactMethod && detailModal.contactDetails && (
+                    <p className="text-[11px] text-zinc-500 mt-1 italic">{detailModal.contactDetails}</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-3">Evidence Images</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {detailModal.attachments?.map((img, i) => (
+                    <div key={i} onClick={() => setSelectedImage(getFileUrl(img.fileUrl))} className="cursor-pointer block overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-violet-500 transition-colors">
+                      <img src={getFileUrl(img.fileUrl)} className="h-24 w-full object-cover transition-transform hover:scale-110" alt="evidence" />
+                    </div>
+                  )) || <p className="text-sm font-medium text-zinc-500 italic p-4 bg-zinc-50 dark:bg-zinc-950/50 rounded-xl border border-zinc-200 dark:border-zinc-800 col-span-3 text-center">No images attached</p>}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Viewer Overlay */}
+      {selectedImage && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4" onClick={() => setSelectedImage(null)}>
+          <button 
+            onClick={() => setSelectedImage(null)} 
+            className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-[110]"
+          >
+            <X size={24} />
+          </button>
+          <img 
+            src={selectedImage} 
+            alt="Full Preview" 
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
 

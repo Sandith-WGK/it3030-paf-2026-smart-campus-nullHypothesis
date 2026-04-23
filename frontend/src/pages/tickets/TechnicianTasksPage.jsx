@@ -26,9 +26,17 @@ export default function TechnicianTasksPage() {
   const [newStatus, setNewStatus] = useState('');
   const [resolutionNote, setResolutionNote] = useState('');
   const [detailModal, setDetailModal] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
   const [commentModal, setCommentModal] = useState(null);
   const [newComment, setNewComment] = useState('');
   const [activeComments, setActiveComments] = useState([]);
+  
+  const getFileUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081';
+    return `${baseUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+  };
 
   useEffect(() => {
     loadTasks();
@@ -299,9 +307,9 @@ export default function TechnicianTasksPage() {
                 <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-3">Evidence Images</label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {detailModal.attachments?.map((img, i) => (
-                    <a key={i} href={img.fileUrl} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-violet-500 transition-colors">
-                      <img src={img.fileUrl} className="h-24 w-full object-cover transition-transform hover:scale-110" alt="evidence" />
-                    </a>
+                    <div key={i} onClick={() => setSelectedImage(getFileUrl(img.fileUrl))} className="cursor-pointer block overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800 hover:border-violet-500 transition-colors">
+                      <img src={getFileUrl(img.fileUrl)} className="h-24 w-full object-cover transition-transform hover:scale-110" alt="evidence" />
+                    </div>
                   )) || <p className="text-sm font-medium text-zinc-500 italic p-4 bg-zinc-50 dark:bg-zinc-950/50 rounded-xl border border-zinc-200 dark:border-zinc-800 col-span-3 text-center">No images attached</p>}
                 </div>
               </div>
@@ -351,6 +359,24 @@ export default function TechnicianTasksPage() {
               <button type="submit" className="px-6 py-2.5 bg-violet-600 hover:bg-violet-700 text-white rounded-xl text-sm font-bold shadow-md transition-colors">Send</button>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* Image Viewer Overlay */}
+      {selectedImage && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4" onClick={() => setSelectedImage(null)}>
+          <button 
+            onClick={() => setSelectedImage(null)} 
+            className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors z-[110]"
+          >
+            <X size={24} />
+          </button>
+          <img 
+            src={selectedImage} 
+            alt="Full Preview" 
+            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
 
