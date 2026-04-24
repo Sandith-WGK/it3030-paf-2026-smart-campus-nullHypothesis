@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import QRCode from 'qrcode';
 
 const formatFilterValue = (value) => (value ? String(value) : 'All');
 
@@ -58,8 +59,9 @@ const buildTopResources = (rows) => {
 /**
  * Generates and downloads a booking confirmation PDF.
  */
-export function generateBookingPDF(booking) {
+export async function generateBookingPDF(booking, options = {}) {
   const doc = new jsPDF();
+  const { qrValue } = options;
 
   // Header
   doc.setFontSize(20);
@@ -98,6 +100,37 @@ export function generateBookingPDF(booking) {
     headStyles: { fillColor: [109, 40, 217] },
     columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
   });
+
+  if (normalizeStatus(booking.status) === 'APPROVED' && qrValue) {
+    const finalY = doc.lastAutoTable?.finalY ?? 118;
+    const blockY = finalY + 10;
+    const qrSize = 44;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(39, 39, 42);
+    doc.text('Check-In QR Code', 14, blockY);
+
+    const qrDataUrl = await QRCode.toDataURL(qrValue, {
+      width: 512,
+      margin: 1,
+      color: { dark: '#18181b', light: '#ffffff' },
+    });
+
+    doc.setDrawColor(220, 220, 225);
+    doc.roundedRect(14, blockY + 3, qrSize, qrSize, 2, 2, 'S');
+    doc.addImage(qrDataUrl, 'PNG', 15.5, blockY + 4.5, qrSize - 3, qrSize - 3);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(82, 82, 91);
+    doc.text('Scan this QR to verify booking check-in.', 62, blockY + 13);
+
+    const wrapUrl = doc.splitTextToSize(qrValue, 128);
+    doc.setFontSize(7.5);
+    doc.setTextColor(113, 113, 122);
+    doc.text(wrapUrl, 62, blockY + 20);
+  }
 
   doc.save(`booking-${booking.id}.pdf`);
 }

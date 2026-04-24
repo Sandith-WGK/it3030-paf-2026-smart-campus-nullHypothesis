@@ -105,9 +105,16 @@ export default function BookingDetail() {
     }
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     if (!booking) return;
-    generateBookingPDF(booking);
+    const qrValue = booking.status === 'APPROVED'
+      ? (
+          verifyToken
+            ? `${window.location.origin}/verify-booking?token=${encodeURIComponent(verifyToken)}`
+            : `${window.location.origin}/verify-booking/${booking.id}`
+        )
+      : '';
+    await generateBookingPDF(booking, { qrValue });
   };
 
   if (loading) {
