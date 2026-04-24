@@ -35,7 +35,12 @@ public class NotificationService {
     private final ApplicationEventPublisher eventPublisher;
 
     /**
-     * Generic method to trigger a notification from any service.
+     * VIVA PREP: Generic method to trigger a notification from any service.
+     * Logic Flow:
+     * 1. Checks user's custom notification preferences (e.g., if they muted "Ticket" alerts).
+     * 2. If allowed, builds a Notification entity and saves it to MongoDB.
+     * 3. Pushes the alert in real-time to the frontend using WebSockets.
+     * 4. Triggers an asynchronous email event.
      */
     public void sendNotification(String userId, String message, NotifType type, Severity severity, 
                                  String referenceId, String referenceType) {
@@ -133,7 +138,9 @@ public class NotificationService {
     }
 
     /**
-     * Mark a notification as read. Validates that the notification belongs to the user.
+     * VIVA PREP: Mark a notification as read.
+     * SECURITY: Validates that the notification actually belongs to the user requesting the change
+     * to prevent Insecure Direct Object Reference (IDOR) vulnerabilities.
      */
     public NotificationDto markAsRead(String notificationId, String userId) {
         Notification notification = notificationRepository.findById(notificationId)

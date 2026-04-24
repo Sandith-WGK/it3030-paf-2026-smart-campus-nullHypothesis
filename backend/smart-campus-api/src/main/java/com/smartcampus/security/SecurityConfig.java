@@ -44,7 +44,11 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .cors(cors -> cors.configure(http))
-            .csrf(csrf -> csrf.disable()) // Stateless REST API
+            // VIVA PREP: We disable CSRF because our REST API uses stateless JWTs instead of session cookies.
+            // The browser won't automatically attach JWTs to forged requests, making CSRF impossible.
+            .csrf(csrf -> csrf.disable()) 
+            // VIVA PREP: We tell Spring Security NOT to create HTTP Sessions (State) in the server RAM.
+            // Every request must prove who they are by providing a JWT in the Authorization header.
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/api/v1/auth/**", "/api/v1/public/**", "/oauth2/**", "/login/**", "/error", "/ws/**","/uploads/**").permitAll()
@@ -53,6 +57,8 @@ public class SecurityConfig {
             ;
 
         if (clientRegistrationRepository != null) {
+            // VIVA PREP: This block configures Google OAuth 2.0. 
+            // It intercepts requests to /oauth2/authorize and handles the Google Consent callback.
             http.oauth2Login(oauth2 -> oauth2
                 .authorizationEndpoint(authEndpoint -> authEndpoint
                     .baseUri("/oauth2/authorize")

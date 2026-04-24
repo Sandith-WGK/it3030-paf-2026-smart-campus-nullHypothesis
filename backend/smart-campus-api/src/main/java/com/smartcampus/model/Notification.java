@@ -20,6 +20,11 @@ import java.time.Instant;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * VIVA PREP: This is the exact schema mapped to the MongoDB 'notifications' collection.
+ * We use @Indexed on userId because it drastically reduces the time complexity 
+ * (from O(N) to O(log N) or O(1)) when querying notifications for a specific user.
+ */
 public class Notification {
 
     @Id

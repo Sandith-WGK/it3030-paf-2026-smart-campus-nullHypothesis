@@ -28,6 +28,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+        // VIVA PREP: This filter intercepts EVERY SINGLE incoming HTTP request.
+        // Because our API is stateless, it must look for the "Authorization: Bearer <token>" header,
+        // validate the cryptographic signature, and explicitly tell Spring Security who the user is for this single request.
         try {
             String jwt = getJwtFromRequest(request);
 

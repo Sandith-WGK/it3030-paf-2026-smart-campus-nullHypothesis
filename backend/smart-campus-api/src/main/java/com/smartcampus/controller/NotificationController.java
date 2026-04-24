@@ -17,6 +17,11 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/notifications")
 @RequiredArgsConstructor
+/**
+ * VIVA PREP: This controller handles REST API requests for notifications.
+ * It uses DTOs (NotificationDto) to avoid exposing internal MongoDB document structures directly to the React frontend.
+ * Method-level security (@PreAuthorize) is heavily used here to ensure users can only access their own data.
+ */
 public class NotificationController {
 
     private final NotificationService notificationService;

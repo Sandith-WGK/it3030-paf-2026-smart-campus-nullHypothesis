@@ -30,6 +30,12 @@ public class JwtProvider {
         return generateTokenFromPrincipal(userPrincipal);
     }
 
+    /**
+     * VIVA PREP: Generates the cryptographically signed JWT.
+     * The payload (claims) includes the User ID (subject), Role, Name, and Email.
+     * Storing the role inside the token allows the React frontend to know if the user is an ADMIN 
+     * without making an extra database call.
+     */
     private String generateTokenFromPrincipal(UserPrincipal userPrincipal) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + jwtExpirationInMs);

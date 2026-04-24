@@ -53,6 +53,12 @@ public class AuthController {
     @Autowired
     private com.smartcampus.service.UserActivityService userActivityService;
 
+    /**
+     * VIVA PREP: Native Login Endpoint.
+     * 1. Authenticates email/password using Spring's AuthenticationManager.
+     * 2. Generates a JWT.
+     * 3. Checks Role: If ADMIN or TECHNICIAN, it halts login, generates an OTP, and demands 2FA.
+     */
     @PostMapping("/login")
     public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest, jakarta.servlet.http.HttpServletRequest request) {
         Authentication authentication = authenticationManager.authenticate(

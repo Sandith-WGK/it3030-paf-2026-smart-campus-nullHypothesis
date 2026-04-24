@@ -38,6 +38,9 @@ public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationS
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
+        // VIVA PREP: This method fires immediately after Google successfully authenticates the user.
+        // It checks if the user exists in our MongoDB. If they have an ADMIN/TECHNICIAN role,
+        // it halts the redirect and forces the 2FA flow. Otherwise, it issues a JWT.
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
         User user = userRepository.findById(userPrincipal.getUserId()).orElse(null);
 
