@@ -8,9 +8,8 @@ import {
   CheckCircle2,
   XCircle,
   ChevronRight,
-  CheckSquare,
-  Square,
   BarChart3,
+  Download,
 } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
 import BookingFilters from '../../components/booking/BookingFilters';
@@ -22,6 +21,7 @@ import EmptyState from '../../components/common/EmptyState';
 import { SkeletonGrid } from '../../components/common/Skeleton';
 import bookingService from '../../services/api/bookingService';
 import BookingAnalyticsPanel from '../../components/booking/BookingAnalyticsPanel';
+import { generateBookingsListPDF } from '../../utils/pdfExport';
 
 const PAGE_SIZE = 20;
 const BUSINESS_TIMEZONE = 'Asia/Colombo';
@@ -68,6 +68,9 @@ export default function AdminBookings() {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [exportScope, setExportScope] = useState('filtered');
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const [exportingCsv, setExportingCsv] = useState(false);
 
   // Single reject/approve
   const [rejectTarget, setRejectTarget] = useState(null);
@@ -242,6 +245,121 @@ export default function AdminBookings() {
   const today = todayInTimezone(BUSINESS_TIMEZONE);
   const todayCount = bookings.filter((b) => b.date === today).length;
 
+  const getRowsForAllFilteredBookings = useCallback(async () => {
+    const size = 100;
+    let currentPage = 0;
+    let hasNextPage = true;
+    const rows = [];
+
+    while (hasNextPage) {
+      const res = await bookingService.getAllBookings({ ...filters, page: currentPage, size });
+      const raw = res.data?.data ?? res.data;
+      const list = Array.isArray(raw?.content) ? raw.content : Array.isArray(raw) ? raw : [];
+      rows.push(...list);
+      hasNextPage = Boolean(raw?.hasNext);
+      currentPage += 1;
+      if (!raw?.content) {
+        hasNextPage = false;
+      }
+    }
+
+    return sortBookings(rows);
+  }, [filters]);
+
+  const getRowsForExport = useCallback(async () => (
+    exportScope === 'page' ? bookings : getRowsForAllFilteredBookings()
+  ), [bookings, exportScope, getRowsForAllFilteredBookings]);
+
+  const escapeCsvCell = (value) => {
+    if (value == null) return '';
+    const str = String(value);
+    if (/[",\n]/.test(str)) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const downloadCsv = (rows) => {
+    const headers = [
+      'Booking ID',
+      'Resource ID',
+      'Resource',
+      'Requested By',
+      'Email',
+      'Date',
+      'Time',
+      'Attendees',
+      'Status',
+    ];
+    const csvRows = rows.map((b) => ([
+      b.id ?? '',
+      b.resourceId ?? 'N/A',
+      b.resourceName ?? '',
+      b.userName ?? '',
+      b.userEmail ?? '',
+      b.date ?? '',
+      `${b.startTime ?? '-'} - ${b.endTime ?? '-'}`,
+      b.expectedAttendees ?? '',
+      b.status ?? '',
+    ]));
+    const content = [headers, ...csvRows]
+      .map((row) => row.map(escapeCsvCell).join(','))
+      .join('\n');
+
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `bookings_report_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPDF = async () => {
+    if (exportingPdf || exportingCsv) return;
+    setExportingPdf(true);
+    try {
+      const targetRows = await getRowsForExport();
+
+      if (!targetRows.length) {
+        setToast({ type: 'error', message: 'No bookings available for export' });
+        return;
+      }
+
+      generateBookingsListPDF(targetRows, filters, {
+        scope: exportScope === 'page' ? 'Current page only' : 'Current filtered results',
+        generatedBy: 'Admin',
+      });
+      setToast({ type: 'success', message: `Exported ${targetRows.length} booking(s) to PDF` });
+    } catch {
+      setToast({ type: 'error', message: 'Failed to export bookings PDF' });
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
+  const handleExportCSV = async () => {
+    if (exportingPdf || exportingCsv) return;
+    setExportingCsv(true);
+    try {
+      const targetRows = await getRowsForExport();
+
+      if (!targetRows.length) {
+        setToast({ type: 'error', message: 'No bookings available for export' });
+        return;
+      }
+
+      downloadCsv(targetRows);
+      setToast({ type: 'success', message: `Exported ${targetRows.length} booking(s) to CSV` });
+    } catch {
+      setToast({ type: 'error', message: 'Failed to export bookings CSV' });
+    } finally {
+      setExportingCsv(false);
+    }
+  };
+
   return (
     <Layout title="Manage Bookings">
       {/* Page header */}
@@ -255,18 +373,51 @@ export default function AdminBookings() {
             Showing page {page + 1} (up to {PAGE_SIZE} bookings per page)
           </p>
         </div>
-        <button
-          id="toggle-booking-analytics"
-          onClick={() => setShowAnalytics((v) => !v)}
-          className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border transition-colors ${
-            showAnalytics
-              ? 'bg-violet-600 text-white border-violet-600 shadow-sm shadow-violet-400/20'
-              : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:border-violet-400 hover:text-violet-600'
-          }`}
-        >
-          <BarChart3 size={14} />
-          Analytics
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            id="toggle-booking-analytics"
+            onClick={() => setShowAnalytics((v) => !v)}
+            className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border transition-colors ${
+              showAnalytics
+                ? 'bg-violet-600 text-white border-violet-600 shadow-sm shadow-violet-400/20'
+                : 'bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 border-zinc-200 dark:border-zinc-700 hover:border-violet-400 hover:text-violet-600'
+            }`}
+          >
+            <BarChart3 size={14} />
+            Analytics
+          </button>
+          <label className="text-xs text-zinc-500 dark:text-zinc-400">Scope</label>
+          <select
+            value={exportScope}
+            onChange={(e) => setExportScope(e.target.value)}
+            className="text-xs px-2.5 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-200"
+            disabled={loading || exportingPdf || exportingCsv}
+            aria-label="Export scope"
+          >
+            <option value="filtered">Current filtered results</option>
+            <option value="page">Current page only</option>
+          </select>
+          <button
+            type="button"
+            onClick={handleExportPDF}
+            disabled={loading || exportingPdf || exportingCsv || bookings.length === 0}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:border-violet-400 hover:text-violet-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title={bookings.length === 0 ? 'No bookings to export' : 'Export bookings as PDF'}
+          >
+            <Download size={14} />
+            {exportingPdf ? 'Exporting…' : 'Export PDF'}
+          </button>
+          <button
+            type="button"
+            onClick={handleExportCSV}
+            disabled={loading || exportingPdf || exportingCsv || bookings.length === 0}
+            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-300 hover:border-violet-400 hover:text-violet-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title={bookings.length === 0 ? 'No bookings to export' : 'Export bookings as CSV'}
+          >
+            <Download size={14} />
+            {exportingCsv ? 'Exporting…' : 'Export CSV'}
+          </button>
+        </div>
       </div>
 
       {/* Analytics panel */}
@@ -434,6 +585,9 @@ export default function AdminBookings() {
                         <td className="px-4 py-3">
                           <div className="min-w-0">
                             <p className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">{b.resourceName}</p>
+                            <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                              ID: {b.resourceId ?? 'N/A'}
+                            </p>
                             {b.resourceRecordDeleted && (
                               <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
                                 record deleted
@@ -446,7 +600,10 @@ export default function AdminBookings() {
                         </td>
                         <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300">
                           <div className="min-w-0">
-                            <p className="truncate">{b.userName}</p>
+                            <p className="truncate">{b.userName ?? 'N/A'}</p>
+                            <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400 truncate">
+                              {b.userEmail ?? 'N/A'}
+                            </p>
                             {b.userRecordDeleted && (
                               <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
                                 record deleted
