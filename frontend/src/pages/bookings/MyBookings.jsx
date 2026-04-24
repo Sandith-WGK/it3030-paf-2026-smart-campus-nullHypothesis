@@ -4,6 +4,8 @@ import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { Plus, CalendarDays, List, ChevronLeft, ChevronRight } from 'lucide-react';
 import Layout from '../../components/layout/Layout';
 import BookingCard from '../../components/booking/BookingCard';
+import RecentlyBooked from '../../components/booking/RecentlyBooked';
+import MostlyBooked from '../../components/booking/MostlyBooked';
 import ConfirmModal from '../../components/booking/ConfirmModal';
 import Toast from '../../components/common/Toast';
 import EmptyState from '../../components/common/EmptyState';
@@ -173,6 +175,7 @@ export default function MyBookings() {
   const [toast, setToast] = useState(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [recentRefreshKey, setRecentRefreshKey] = useState(0);
 
   const [cancelTarget, setCancelTarget] = useState(null);
   const [cancelLoading, setCancelLoading] = useState(false);
@@ -210,6 +213,7 @@ export default function MyBookings() {
       setToast({ type: 'success', message: 'Booking cancelled successfully' });
       setCancelTarget(null);
       load();
+      setRecentRefreshKey((k) => k + 1);
     } catch (err) {
       setToast({
         type: 'error',
@@ -227,6 +231,7 @@ export default function MyBookings() {
       setToast({ type: 'success', message: 'Booking deleted' });
       setDeleteTarget(null);
       load();
+      setRecentRefreshKey((k) => k + 1);
     } catch (err) {
       setToast({
         type: 'error',
@@ -307,84 +312,95 @@ export default function MyBookings() {
         ))}
       </div>
 
-      {/* Content */}
-      {loading ? (
-        <SkeletonGrid />
-      ) : viewMode === 'calendar' ? (
-        <>
-          <CalendarView
-            bookings={bookings}
-            onDayClick={(date) =>
-              setCalendarFilter((prev) => (prev === date ? null : date))
-            }
-          />
-          {/* When a day is selected, show that day's bookings below */}
-          {calendarFilter && (
-            <div className="mt-6">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-                  Bookings on {calendarFilter}
-                </h3>
-                <button
-                  onClick={() => setCalendarFilter(null)}
-                  className="text-xs text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
-                >
-                  Clear
-                </button>
-              </div>
-              {displayedBookings.length === 0 ? (
-                <p className="text-sm text-zinc-400 italic">No bookings on this day.</p>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <AnimatePresence>
-                    {displayedBookings.map((b, i) => (
-                      <BookingCard
-                        key={b.id}
-                        booking={b}
-                        index={i}
-                        onCancel={setCancelTarget}
-                        onDelete={setDeleteTarget}
-                      />
-                    ))}
-                  </AnimatePresence>
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="lg:col-span-9">
+          {/* Content */}
+          {loading ? (
+            <SkeletonGrid />
+          ) : viewMode === 'calendar' ? (
+            <>
+              <CalendarView
+                bookings={bookings}
+                onDayClick={(date) =>
+                  setCalendarFilter((prev) => (prev === date ? null : date))
+                }
+              />
+              {/* When a day is selected, show that day's bookings below */}
+              {calendarFilter && (
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                      Bookings on {calendarFilter}
+                    </h3>
+                    <button
+                      onClick={() => setCalendarFilter(null)}
+                      className="text-xs text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  {displayedBookings.length === 0 ? (
+                    <p className="text-sm text-zinc-400 italic">No bookings on this day.</p>
+                  ) : (
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
+                      <AnimatePresence>
+                        {displayedBookings.map((b, i) => (
+                          <BookingCard
+                            key={b.id}
+                            booking={b}
+                            index={i}
+                            onCancel={setCancelTarget}
+                            onDelete={setDeleteTarget}
+                          />
+                        ))}
+                      </AnimatePresence>
+                    </div>
+                  )}
                 </div>
               )}
+            </>
+          ) : bookings.length === 0 ? (
+            <EmptyState
+              icon={CalendarDays}
+              title="No bookings found"
+              message={
+                activeTab
+                  ? `You have no ${activeTab.toLowerCase()} bookings.`
+                  : 'You have not made any bookings yet.'
+              }
+              action={
+                <button
+                  onClick={() => navigate('/bookings/new')}
+                  className="rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-5 py-2.5 transition-colors"
+                >
+                  Book a Resource
+                </button>
+              }
+            />
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
+              <AnimatePresence>
+                {bookings.map((b, i) => (
+                  <BookingCard
+                    key={b.id}
+                    booking={b}
+                    index={i}
+                    onCancel={setCancelTarget}
+                    onDelete={setDeleteTarget}
+                  />
+                ))}
+              </AnimatePresence>
             </div>
           )}
-        </>
-      ) : bookings.length === 0 ? (
-        <EmptyState
-          icon={CalendarDays}
-          title="No bookings found"
-          message={
-            activeTab
-              ? `You have no ${activeTab.toLowerCase()} bookings.`
-              : 'You have not made any bookings yet.'
-          }
-          action={
-            <button
-              onClick={() => navigate('/bookings/new')}
-              className="rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold px-5 py-2.5 transition-colors"
-            >
-              Book a Resource
-            </button>
-          }
-        />
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <AnimatePresence>
-            {bookings.map((b, i) => (
-              <BookingCard
-                key={b.id}
-                booking={b}
-                index={i}
-                onCancel={setCancelTarget}
-                onDelete={setDeleteTarget}
-              />
-            ))}
-          </AnimatePresence>
         </div>
-      )}
+
+        <aside className="lg:col-span-3">
+          <div className="space-y-4">
+            <RecentlyBooked refreshKey={recentRefreshKey} />
+            <MostlyBooked refreshKey={recentRefreshKey} />
+          </div>
+        </aside>
+      </div>
 
       {/* Cancel modal */}
       <ConfirmModal

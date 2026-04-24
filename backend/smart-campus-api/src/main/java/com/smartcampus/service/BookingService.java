@@ -5,6 +5,7 @@ import com.smartcampus.dto.booking.BookingRejectRequest;
 import com.smartcampus.dto.booking.BookingRequest;
 import com.smartcampus.dto.booking.BookingResponse;
 import com.smartcampus.dto.booking.BookingUpdateRequest;
+import com.smartcampus.dto.booking.MostBookedResourceResponse;
 import com.smartcampus.dto.booking.PublicBookingVerificationResponse;
 import com.smartcampus.dto.PagedResponse;
 import com.smartcampus.exception.BookingConflictException;
@@ -21,6 +22,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
@@ -29,6 +31,8 @@ import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,6 +42,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class BookingService {
+    static final ZoneId BOOKING_ZONE = ZoneId.of("Asia/Colombo");
+    static final String AUTO_EXPIRED_REJECTION_REASON = "Expired: request not approved before booking date.";
 
     private final BookingRepository bookingRepository;
     private final ResourceRepository resourceRepository;
@@ -121,6 +127,95 @@ public class BookingService {
         return queryBookingsWithPagination(query, page, size, userId);
     }
 
+    public List<BookingResponse> getMyRecentBookings(String userId, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 10));
+        Query query = new Query()
+                .addCriteria(Criteria.where("userId").is(userId))
+                .addCriteria(Criteria.where("status").ne(BookingStatus.PENDING))
+                .with(Sort.by(Sort.Direction.DESC, "date", "startTime"))
+                .limit(safeLimit);
+
+        List<Booking> bookings = mongoTemplate.find(query, Booking.class);
+        Map<String, Resource> resourceMap = buildResourceMap(bookings);
+        User user = userRepository.findById(userId).orElse(null);
+
+        return bookings.stream()
+                .map(b -> BookingResponse.from(b, resourceMap.get(b.getResourceId()), user))
+                .collect(Collectors.toList());
+    }
+
+    public List<MostBookedResourceResponse> getMyMostBookedResources(String userId, int limit) {
+        int safeLimit = Math.max(1, Math.min(limit, 10));
+        Query query = new Query()
+                .addCriteria(Criteria.where("userId").is(userId))
+                .addCriteria(Criteria.where("status").ne(BookingStatus.PENDING));
+
+        List<Booking> bookings = mongoTemplate.find(query, Booking.class);
+        if (bookings.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, ResourceBookingAggregate> aggregates = new HashMap<>();
+        for (Booking booking : bookings) {
+            String key = booking.getResourceId() != null ? booking.getResourceId() : "unknown-resource";
+            ResourceBookingAggregate aggregate = aggregates.computeIfAbsent(key, ignored -> new ResourceBookingAggregate());
+            aggregate.count += 1;
+
+            if (aggregate.latestBooking == null || compareBookingRecency(booking, aggregate.latestBooking) < 0) {
+                aggregate.latestBooking = booking;
+            }
+            if ((aggregate.resourceName == null || aggregate.resourceName.isBlank())
+                    && booking.getResourceNameSnapshot() != null
+                    && !booking.getResourceNameSnapshot().isBlank()) {
+                aggregate.resourceName = booking.getResourceNameSnapshot();
+            }
+        }
+
+        List<String> missingNameIds = aggregates.entrySet().stream()
+                .filter(entry -> entry.getValue().resourceName == null || entry.getValue().resourceName.isBlank())
+                .map(Map.Entry::getKey)
+                .filter(id -> !"unknown-resource".equals(id))
+                .collect(Collectors.toList());
+        if (!missingNameIds.isEmpty()) {
+            Map<String, String> resourceNameMap = resourceRepository.findAllById(missingNameIds).stream()
+                    .collect(Collectors.toMap(Resource::getId, Resource::getName));
+            for (String resourceId : missingNameIds) {
+                ResourceBookingAggregate aggregate = aggregates.get(resourceId);
+                if (aggregate != null) {
+                    aggregate.resourceName = resourceNameMap.getOrDefault(resourceId, resourceId);
+                }
+            }
+        }
+
+        return aggregates.entrySet().stream()
+                .map(entry -> {
+                    String resourceId = entry.getKey();
+                    ResourceBookingAggregate aggregate = entry.getValue();
+                    Booking latest = aggregate.latestBooking;
+                    return MostBookedResourceResponse.builder()
+                            .resourceId(resourceId)
+                            .resourceName(
+                                    aggregate.resourceName != null && !aggregate.resourceName.isBlank()
+                                            ? aggregate.resourceName
+                                            : resourceId
+                            )
+                            .bookCount(aggregate.count)
+                            .lastBookedAt(latest != null ? latest.getCreatedAt() : null)
+                            .latestBookingId(latest != null ? latest.getId() : null)
+                            .build();
+                })
+                .sorted(
+                        Comparator.comparingLong(MostBookedResourceResponse::getBookCount).reversed()
+                                .thenComparing(
+                                        MostBookedResourceResponse::getLastBookedAt,
+                                        Comparator.nullsLast(Comparator.reverseOrder())
+                                )
+                                .thenComparing(MostBookedResourceResponse::getResourceName, Comparator.nullsLast(String::compareToIgnoreCase))
+                )
+                .limit(safeLimit)
+                .collect(Collectors.toList());
+    }
+
     public PagedResponse<BookingResponse> getAllBookings(BookingStatus status, String resourceId,
                                                          String userId, LocalDate date, int page, int size) {
         Query query = new Query();
@@ -128,9 +223,36 @@ public class BookingService {
         if (resourceId != null && !resourceId.isBlank()) query.addCriteria(Criteria.where("resourceId").is(resourceId));
         if (userId != null && !userId.isBlank()) query.addCriteria(Criteria.where("userId").is(userId));
         if (date != null) query.addCriteria(Criteria.where("date").is(date));
-        query.with(Sort.by(Sort.Direction.DESC, "createdAt"));
 
-        return queryBookingsWithPagination(query, page, size, null);
+        if (page < 0) page = 0;
+        if (size <= 0) size = 20;
+        if (size > 100) size = 100;
+
+        List<Booking> filtered = new ArrayList<>(mongoTemplate.find(query, Booking.class));
+        LocalDate today = LocalDate.now(BOOKING_ZONE);
+        filtered.sort(adminPracticalComparator(today));
+
+        long total = filtered.size();
+        int fromIndex = Math.min(page * size, filtered.size());
+        int toIndex = Math.min(fromIndex + size, filtered.size());
+        List<Booking> paged = filtered.subList(fromIndex, toIndex);
+
+        Map<String, Resource> resourceMap = buildResourceMap(paged);
+        Map<String, User> userMap = buildUserMap(paged);
+        List<BookingResponse> rows = paged.stream()
+                .map(b -> BookingResponse.from(b, resourceMap.get(b.getResourceId()), userMap.get(b.getUserId())))
+                .collect(Collectors.toList());
+
+        int totalPages = total == 0 ? 0 : (int) Math.ceil((double) total / size);
+        boolean hasNext = (long) (page + 1) * size < total;
+        return PagedResponse.<BookingResponse>builder()
+                .content(rows)
+                .page(page)
+                .size(size)
+                .totalElements(total)
+                .totalPages(totalPages)
+                .hasNext(hasNext)
+                .build();
     }
 
     // ── Update ───────────────────────────────────────────────────────────────
@@ -520,7 +642,7 @@ public class BookingService {
                             booking.getStatus()));
         }
 
-        LocalDate today = LocalDate.now(ZoneId.of("Asia/Colombo"));
+        LocalDate today = LocalDate.now(BOOKING_ZONE);
         if (!booking.getDate().equals(today)) {
             throw new InvalidBookingStateException(
                     String.format("This booking is for %s, but today is %s. Check-in is only allowed on the booking date.",
@@ -553,7 +675,7 @@ public class BookingService {
                             booking.getStatus()));
         }
 
-        LocalDate today = LocalDate.now(ZoneId.of("Asia/Colombo"));
+        LocalDate today = LocalDate.now(BOOKING_ZONE);
         if (!booking.getDate().equals(today)) {
             throw new InvalidBookingStateException(
                     String.format("This booking is for %s, but today is %s. Check-in is only allowed on the booking date.",
@@ -562,6 +684,36 @@ public class BookingService {
 
         Resource resource = resourceRepository.findById(booking.getResourceId()).orElse(null);
         return PublicBookingVerificationResponse.from(booking, resource);
+    }
+
+    /**
+     * Automatically expires stale pending bookings once per day.
+     * A booking becomes stale when its date is before "today" in Asia/Colombo.
+     */
+    @Scheduled(cron = "0 5 0 * * *")
+    public void expirePastPendingBookings() {
+        LocalDate today = LocalDate.now(BOOKING_ZONE);
+        List<Booking> stalePending = bookingRepository.findByStatusAndDateBefore(BookingStatus.PENDING, today);
+
+        for (Booking booking : stalePending) {
+            booking.setStatus(BookingStatus.REJECTED);
+            if (booking.getRejectionReason() == null || booking.getRejectionReason().isBlank()) {
+                booking.setRejectionReason(AUTO_EXPIRED_REJECTION_REASON);
+            }
+            bookingRepository.save(booking);
+
+            Resource resource = resourceRepository.findById(booking.getResourceId()).orElse(null);
+            String resourceName = resource != null ? resource.getName() : "resource";
+            notificationService.sendNotification(
+                    booking.getUserId(),
+                    String.format("Your booking for %s on %s was rejected: %s",
+                            resourceName, booking.getDate(), booking.getRejectionReason()),
+                    NotifType.BOOKING_REJECTED,
+                    Severity.ALERT,
+                    booking.getId(),
+                    "BOOKING"
+            );
+        }
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -590,7 +742,7 @@ public class BookingService {
      * using the Sri Lanka timezone (IST, Asia/Colombo) to match the QR verify logic.
      */
     private void validateNotPastDate(LocalDate date) {
-        LocalDate today = LocalDate.now(ZoneId.of("Asia/Colombo"));
+        LocalDate today = LocalDate.now(BOOKING_ZONE);
         if (date.isBefore(today)) {
             throw new InvalidBookingStateException("Cannot book a date in the past");
         }
@@ -723,6 +875,58 @@ public class BookingService {
                 .totalPages(totalPages)
                 .hasNext(hasNext)
                 .build();
+    }
+
+    private Comparator<Booking> adminPracticalComparator(LocalDate today) {
+        Comparator<Booking> pendingComparator = Comparator
+                .comparing((Booking b) -> b.getDate(), Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(b -> b.getStartTime(), Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(b -> b.getCreatedAt(), Comparator.nullsLast(Comparator.naturalOrder()));
+
+        Comparator<Booking> nonPendingComparator = Comparator
+                .comparing((Booking b) -> b.getDate(), Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(b -> b.getStartTime(), Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(b -> b.getCreatedAt(), Comparator.nullsLast(Comparator.reverseOrder()));
+
+        return (a, b) -> {
+            boolean aPending = a.getStatus() == BookingStatus.PENDING;
+            boolean bPending = b.getStatus() == BookingStatus.PENDING;
+            if (aPending != bPending) {
+                return aPending ? -1 : 1;
+            }
+
+            if (aPending) {
+                int aUrgency = pendingUrgencyBucket(a.getDate(), today);
+                int bUrgency = pendingUrgencyBucket(b.getDate(), today);
+                if (aUrgency != bUrgency) {
+                    return Integer.compare(aUrgency, bUrgency);
+                }
+                return pendingComparator.compare(a, b);
+            }
+
+            return nonPendingComparator.compare(a, b);
+        };
+    }
+
+    private int pendingUrgencyBucket(LocalDate bookingDate, LocalDate today) {
+        if (bookingDate == null) return 3;
+        if (bookingDate.isBefore(today)) return 0;
+        if (bookingDate.isEqual(today)) return 1;
+        return 2;
+    }
+
+    private int compareBookingRecency(Booking a, Booking b) {
+        Comparator<Booking> recencyComparator = Comparator
+                .comparing(Booking::getDate, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(Booking::getStartTime, Comparator.nullsLast(Comparator.reverseOrder()))
+                .thenComparing(Booking::getCreatedAt, Comparator.nullsLast(Comparator.reverseOrder()));
+        return recencyComparator.compare(a, b);
+    }
+
+    private static class ResourceBookingAggregate {
+        private long count;
+        private String resourceName;
+        private Booking latestBooking;
     }
 
     private Map<String, Resource> buildResourceMap(List<Booking> bookings) {

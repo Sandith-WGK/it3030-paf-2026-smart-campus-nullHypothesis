@@ -154,9 +154,11 @@ Default in **`.env.example`** (must match backend port and API prefix):
 
 ```env
 VITE_API_BASE_URL=http://localhost:8081/api/v1
+VITE_OAUTH_BASE_URL=http://localhost:8081
 ```
 
 If you change the backend port in `application.properties`, update **`VITE_API_BASE_URL`** accordingly.
+If your OAuth entrypoint is hosted on a different origin, set **`VITE_OAUTH_BASE_URL`** to that base URL.
 
 **After any change to `.env`**, restart the dev server (`Ctrl+C`, then `npm run dev` again).
 
@@ -251,3 +253,32 @@ GitHub Actions (`.github/workflows/ci.yml`) on **`main`**:
 **Course / project:** IT3030 PAF 2026 — Smart Campus (`nullHypothesis` org/repo name as on GitHub).
 
 For branch workflow, follow your module’s Git strategy (feature branches, PRs to `main`, etc.).
+
+### Member 2 scope (Booking workflow + conflict checking)
+
+- **Owned endpoints (API):**
+  - `POST /api/v1/bookings`
+  - `GET /api/v1/bookings/my`
+  - `GET /api/v1/bookings/{id}`
+  - `PUT /api/v1/bookings/{id}`
+  - `PATCH /api/v1/bookings/{id}/approve`
+  - `PATCH /api/v1/bookings/{id}/reject`
+  - `PATCH /api/v1/bookings/{id}/cancel`
+  - `DELETE /api/v1/bookings/{id}`
+  - `GET /api/v1/bookings` (admin list + filters)
+  - `GET /api/v1/bookings/resource-schedule`
+
+- **Owned UI flows/components:**
+  - Booking creation/edit/view (`/bookings/new`, `/bookings/:id/edit`, `/bookings/:id`)
+  - My bookings and admin booking management pages
+  - Timeline-based conflict awareness and duplicate-booking guidance
+
+- **Conflict policy (arbitration model):**
+  - Overlapping `PENDING` requests are allowed to support admin arbitration.
+  - Approval is exclusive: when one booking is approved, overlapping approvals are blocked and overlapping pending requests are auto-rejected.
+  - This is implemented as a queueing-style approval policy, not first-write-wins at request time.
+
+- **Evidence references:**
+  - Service/business tests: `BookingServiceTest`, `BookingResourceIntegrationTest`
+  - Controller HTTP/RBAC tests: `BookingControllerWebMvcTest`
+  - Demo checklist: `doc/booking-demo-readiness-checklist.md`
