@@ -87,4 +87,10 @@ public interface BookingRepository extends MongoRepository<Booking, String>, Boo
      */
     List<Booking> findByResourceIdAndStatusInAndDateGreaterThanEqual(
             String resourceId, List<BookingStatus> statuses, LocalDate date);
+
+    /**
+     * Find all pending bookings with dates earlier than the provided threshold.
+     * Used by the automated expiry cleanup task.
+     */
+    List<Booking> findByStatusAndDateBefore(BookingStatus status, LocalDate date);
 }

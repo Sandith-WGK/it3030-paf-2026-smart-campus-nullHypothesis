@@ -7,6 +7,7 @@ import com.smartcampus.dto.booking.BookingRejectRequest;
 import com.smartcampus.dto.booking.BookingRequest;
 import com.smartcampus.dto.booking.BookingResponse;
 import com.smartcampus.dto.booking.BookingUpdateRequest;
+import com.smartcampus.dto.booking.MostBookedResourceResponse;
 import com.smartcampus.model.BookingStatus;
 import com.smartcampus.security.UserPrincipal;
 import com.smartcampus.service.BookingService;
@@ -75,6 +76,30 @@ public class BookingController {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noCache())
                 .body(ApiResponse.success("Bookings retrieved successfully", bookings));
+    }
+
+    // ── GET /api/v1/bookings/my/recent ───────────────────────────────────────
+    // Get the authenticated user's most recent bookings for quick sidebar access.
+    @GetMapping("/my/recent")
+    public ResponseEntity<ApiResponse<List<BookingResponse>>> getMyRecentBookings(
+            @RequestParam(defaultValue = "5") int limit,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        List<BookingResponse> bookings = bookingService.getMyRecentBookings(principal.getId(), limit);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noCache())
+                .body(ApiResponse.success("Recent bookings retrieved successfully", bookings));
+    }
+
+    // ── GET /api/v1/bookings/my/most-booked ──────────────────────────────────
+    // Get the authenticated user's most booked resources for quick rebooking.
+    @GetMapping("/my/most-booked")
+    public ResponseEntity<ApiResponse<List<MostBookedResourceResponse>>> getMyMostBookedResources(
+            @RequestParam(defaultValue = "5") int limit,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        List<MostBookedResourceResponse> rows = bookingService.getMyMostBookedResources(principal.getId(), limit);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noCache())
+                .body(ApiResponse.success("Most booked resources retrieved successfully", rows));
     }
 
     // ── GET /api/v1/bookings/resource-schedule ───────────────────────────────
@@ -170,15 +195,15 @@ public class BookingController {
     // Cancel an APPROVED booking. Users can cancel their own; admins can cancel any.
 
     @PatchMapping("/{id}/cancel")
-    public ResponseEntity<ApiResponse<BookingResponse>> cancelBooking(
+    public ResponseEntity<Void> cancelBooking(
             @PathVariable String id,
             @AuthenticationPrincipal UserPrincipal principal) {
 
         boolean isAdmin = principal.getAuthorities().stream()
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
-        BookingResponse response = bookingService.cancelBooking(id, principal.getId(), isAdmin);
-        return ResponseEntity.ok(ApiResponse.success("Booking cancelled successfully", response));
+        bookingService.cancelBooking(id, principal.getId(), isAdmin);
+        return ResponseEntity.noContent().build();
     }
 
     // ── DELETE /api/v1/bookings/{id} ─────────────────────────────────────────
@@ -188,7 +213,7 @@ public class BookingController {
     // (satisfies the Uniform Interface REST constraint).
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteBooking(
+    public ResponseEntity<Void> deleteBooking(
             @PathVariable String id,
             @AuthenticationPrincipal UserPrincipal principal) {
 
@@ -196,7 +221,7 @@ public class BookingController {
                 .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
         bookingService.deleteBooking(id, principal.getId(), isAdmin);
-        return ResponseEntity.ok(ApiResponse.success("Booking deleted successfully", null));
+        return ResponseEntity.noContent().build();
     }
 
     // ── GET /api/v1/bookings/analytics ─────────────────────────────────────────
@@ -207,6 +232,15 @@ public class BookingController {
     public ResponseEntity<ApiResponse<BookingAnalyticsResponse>> getBookingAnalytics() {
         BookingAnalyticsResponse analytics = bookingService.getBookingAnalytics();
         return ResponseEntity.ok(ApiResponse.success("Analytics retrieved successfully", analytics));
+    }
+
+    // ── POST /api/v1/bookings/admin/expire-pending ──────────────────────────
+    // Admin-only manual trigger for demo/ops to expire stale pending bookings.
+    @PostMapping("/admin/expire-pending")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> expirePastPendingBookingsNow() {
+        bookingService.expirePastPendingBookings();
+        return ResponseEntity.ok(ApiResponse.success("Past pending bookings expired successfully", null));
     }
 
     // ── GET /api/v1/bookings/{id}/verify ─────────────────────────────────────

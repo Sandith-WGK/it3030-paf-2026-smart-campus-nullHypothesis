@@ -25,13 +25,13 @@ export default function BookingCard({ booking, onCancel, onDelete, index = 0 }) 
       onClick={handleClick}
     >
       {/* Header row */}
-      <div className="flex items-start justify-between gap-3 mb-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between mb-3">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-xl leading-none shrink-0">
             {resourceTypeIcon[booking.resourceType] ?? '📦'}
           </span>
           <div className="min-w-0">
-            <p className="font-semibold text-zinc-900 dark:text-zinc-100 truncate text-sm">
+            <p className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm leading-tight wrap-break-word line-clamp-2">
               {booking.resourceName}
             </p>
             {booking.resourceLocation && (
@@ -42,7 +42,9 @@ export default function BookingCard({ booking, onCancel, onDelete, index = 0 }) 
             )}
           </div>
         </div>
-        <BookingStatusBadge status={booking.status} />
+        <div className="sm:shrink-0 sm:pl-2">
+          <BookingStatusBadge status={booking.status} />
+        </div>
       </div>
 
       {/* Details */}

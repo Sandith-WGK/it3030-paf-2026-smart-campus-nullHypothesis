@@ -45,7 +45,7 @@ public class SecurityConfig {
         http
             .cors(cors -> cors.configure(http))
             .csrf(csrf -> csrf.disable()) // Stateless REST API
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/api/v1/auth/**", "/api/v1/public/**", "/oauth2/**", "/login/**", "/error", "/ws/**","/uploads/**").permitAll()
                 .anyRequest().authenticated()

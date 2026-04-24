@@ -4,6 +4,7 @@ import com.smartcampus.dto.booking.BookingRejectRequest;
 import com.smartcampus.dto.booking.BookingRequest;
 import com.smartcampus.dto.booking.BookingResponse;
 import com.smartcampus.dto.booking.BookingUpdateRequest;
+import com.smartcampus.dto.booking.MostBookedResourceResponse;
 import com.smartcampus.dto.booking.PublicBookingVerificationResponse;
 import com.smartcampus.exception.BookingConflictException;
 import com.smartcampus.exception.InvalidBookingStateException;
@@ -698,6 +699,321 @@ class BookingServiceTest {
             assertThat(response.getStatus()).isEqualTo(BookingStatus.APPROVED);
             assertThat(response.getId()).isEqualTo("booking-verify");
             assertThat(response.getResourceName()).isEqualTo("Meeting Room A");
+        }
+    }
+
+    @Nested
+    @DisplayName("Most booked resources")
+    class MostBookedResources {
+        @Test
+        @DisplayName("returns resources grouped by frequency with latest booking id")
+        void returnsGroupedFrequencyWithLatestBooking() {
+            Booking olderRes1 = Booking.builder()
+                    .id("b-1")
+                    .resourceId("res-001")
+                    .resourceNameSnapshot("Meeting Room A")
+                    .userId(USER_ID)
+                    .status(BookingStatus.APPROVED)
+                    .date(FUTURE_DATE.minusDays(2))
+                    .startTime(LocalTime.of(9, 0))
+                    .createdAt(java.time.Instant.parse("2026-04-01T08:00:00Z"))
+                    .build();
+            Booking newerRes1 = Booking.builder()
+                    .id("b-2")
+                    .resourceId("res-001")
+                    .resourceNameSnapshot("Meeting Room A")
+                    .userId(USER_ID)
+                    .status(BookingStatus.CANCELLED)
+                    .date(FUTURE_DATE.minusDays(1))
+                    .startTime(LocalTime.of(10, 0))
+                    .createdAt(java.time.Instant.parse("2026-04-02T08:00:00Z"))
+                    .build();
+            Booking res2 = Booking.builder()
+                    .id("b-3")
+                    .resourceId("res-002")
+                    .resourceNameSnapshot("Networking Lab C")
+                    .userId(USER_ID)
+                    .status(BookingStatus.REJECTED)
+                    .date(FUTURE_DATE.minusDays(3))
+                    .startTime(LocalTime.of(11, 0))
+                    .createdAt(java.time.Instant.parse("2026-03-31T08:00:00Z"))
+                    .build();
+
+            when(mongoTemplate.find(any(Query.class), eq(Booking.class))).thenReturn(List.of(olderRes1, res2, newerRes1));
+
+            List<MostBookedResourceResponse> rows = bookingService.getMyMostBookedResources(USER_ID, 5);
+
+            assertThat(rows).hasSize(2);
+            assertThat(rows.get(0).getResourceId()).isEqualTo("res-001");
+            assertThat(rows.get(0).getBookCount()).isEqualTo(2);
+            assertThat(rows.get(0).getLatestBookingId()).isEqualTo("b-2");
+            assertThat(rows.get(1).getResourceId()).isEqualTo("res-002");
+        }
+
+        @Test
+        @DisplayName("respects limit and excludes pending-only history")
+        void respectsLimitAndExcludesPendingOnly() {
+            Booking pendingOnly = Booking.builder()
+                    .id("b-pending")
+                    .resourceId("res-003")
+                    .resourceNameSnapshot("Lab Pending")
+                    .userId(USER_ID)
+                    .status(BookingStatus.PENDING)
+                    .date(FUTURE_DATE)
+                    .startTime(LocalTime.of(10, 0))
+                    .build();
+            Booking res1 = Booking.builder()
+                    .id("b-r1")
+                    .resourceId("res-001")
+                    .resourceNameSnapshot("Meeting Room A")
+                    .userId(USER_ID)
+                    .status(BookingStatus.APPROVED)
+                    .date(FUTURE_DATE.minusDays(1))
+                    .startTime(LocalTime.of(8, 0))
+                    .build();
+            Booking res2 = Booking.builder()
+                    .id("b-r2")
+                    .resourceId("res-002")
+                    .resourceNameSnapshot("Networking Lab C")
+                    .userId(USER_ID)
+                    .status(BookingStatus.REJECTED)
+                    .date(FUTURE_DATE.minusDays(2))
+                    .startTime(LocalTime.of(9, 0))
+                    .build();
+
+            // Query filters out pending in production path; mock the expected result set.
+            when(mongoTemplate.find(any(Query.class), eq(Booking.class))).thenReturn(List.of(res1, res2));
+
+            List<MostBookedResourceResponse> rows = bookingService.getMyMostBookedResources(USER_ID, 1);
+
+            assertThat(rows).hasSize(1);
+            assertThat(rows.get(0).getResourceId()).isEqualTo("res-001");
+            assertThat(rows.stream().noneMatch(r -> "res-003".equals(r.getResourceId()))).isTrue();
+            assertThat(pendingOnly.getId()).isEqualTo("b-pending");
+        }
+    }
+
+    @Nested
+    @DisplayName("Admin practical ordering")
+    class AdminPracticalOrdering {
+        @Test
+        @DisplayName("orders pending by urgency, then non-pending by recency")
+        void ordersByPracticalAdminPolicy() {
+            LocalDate today = LocalDate.now(BookingService.BOOKING_ZONE);
+
+            Booking pendingFuture = Booking.builder()
+                    .id("p-future")
+                    .resourceId("res-001")
+                    .userId("u1")
+                    .status(BookingStatus.PENDING)
+                    .date(today.plusDays(2))
+                    .startTime(LocalTime.of(9, 0))
+                    .createdAt(java.time.Instant.parse("2026-04-20T08:00:00Z"))
+                    .build();
+            Booking pendingTodayEarly = Booking.builder()
+                    .id("p-today-early")
+                    .resourceId("res-001")
+                    .userId("u2")
+                    .status(BookingStatus.PENDING)
+                    .date(today)
+                    .startTime(LocalTime.of(8, 0))
+                    .createdAt(java.time.Instant.parse("2026-04-20T09:00:00Z"))
+                    .build();
+            Booking pendingOverdue = Booking.builder()
+                    .id("p-overdue")
+                    .resourceId("res-001")
+                    .userId("u3")
+                    .status(BookingStatus.PENDING)
+                    .date(today.minusDays(1))
+                    .startTime(LocalTime.of(10, 0))
+                    .createdAt(java.time.Instant.parse("2026-04-20T10:00:00Z"))
+                    .build();
+            Booking pendingTodayLate = Booking.builder()
+                    .id("p-today-late")
+                    .resourceId("res-001")
+                    .userId("u4")
+                    .status(BookingStatus.PENDING)
+                    .date(today)
+                    .startTime(LocalTime.of(12, 0))
+                    .createdAt(java.time.Instant.parse("2026-04-20T11:00:00Z"))
+                    .build();
+            Booking approvedRecent = Booking.builder()
+                    .id("a-recent")
+                    .resourceId("res-001")
+                    .userId("u5")
+                    .status(BookingStatus.APPROVED)
+                    .date(today.plusDays(3))
+                    .startTime(LocalTime.of(11, 0))
+                    .createdAt(java.time.Instant.parse("2026-04-21T08:00:00Z"))
+                    .build();
+            Booking rejectedOlder = Booking.builder()
+                    .id("r-older")
+                    .resourceId("res-001")
+                    .userId("u6")
+                    .status(BookingStatus.REJECTED)
+                    .date(today.plusDays(1))
+                    .startTime(LocalTime.of(11, 0))
+                    .createdAt(java.time.Instant.parse("2026-04-19T08:00:00Z"))
+                    .build();
+
+            List<Booking> unsorted = List.of(
+                    approvedRecent,
+                    pendingFuture,
+                    rejectedOlder,
+                    pendingTodayLate,
+                    pendingOverdue,
+                    pendingTodayEarly
+            );
+            when(mongoTemplate.find(any(Query.class), eq(Booking.class))).thenReturn(unsorted);
+            when(resourceRepository.findAllById(anyList())).thenReturn(List.of(activeRoom));
+            when(userRepository.findAllById(anyList())).thenReturn(List.of(
+                    User.builder().id("u1").name("U1").email("u1@sliit.lk").build(),
+                    User.builder().id("u2").name("U2").email("u2@sliit.lk").build(),
+                    User.builder().id("u3").name("U3").email("u3@sliit.lk").build(),
+                    User.builder().id("u4").name("U4").email("u4@sliit.lk").build(),
+                    User.builder().id("u5").name("U5").email("u5@sliit.lk").build(),
+                    User.builder().id("u6").name("U6").email("u6@sliit.lk").build()
+            ));
+
+            var page = bookingService.getAllBookings(null, null, null, null, 0, 20);
+            List<String> orderedIds = page.getContent().stream().map(BookingResponse::getId).toList();
+
+            assertThat(orderedIds).containsExactly(
+                    "p-overdue",
+                    "p-today-early",
+                    "p-today-late",
+                    "p-future",
+                    "a-recent",
+                    "r-older"
+            );
+        }
+
+        @Test
+        @DisplayName("keeps practical ordering stable across pages")
+        void keepsPracticalOrderingAcrossPages() {
+            LocalDate today = LocalDate.now(BookingService.BOOKING_ZONE);
+            List<Booking> unsorted = List.of(
+                    Booking.builder().id("n2").resourceId("res-001").userId("u2").status(BookingStatus.APPROVED).date(today.plusDays(2)).startTime(LocalTime.of(11, 0)).build(),
+                    Booking.builder().id("p3").resourceId("res-001").userId("u3").status(BookingStatus.PENDING).date(today.plusDays(1)).startTime(LocalTime.of(8, 0)).build(),
+                    Booking.builder().id("p1").resourceId("res-001").userId("u1").status(BookingStatus.PENDING).date(today.minusDays(1)).startTime(LocalTime.of(10, 0)).build(),
+                    Booking.builder().id("n1").resourceId("res-001").userId("u4").status(BookingStatus.REJECTED).date(today).startTime(LocalTime.of(9, 0)).build(),
+                    Booking.builder().id("p2").resourceId("res-001").userId("u5").status(BookingStatus.PENDING).date(today).startTime(LocalTime.of(9, 0)).build()
+            );
+
+            when(mongoTemplate.find(any(Query.class), eq(Booking.class))).thenReturn(unsorted);
+            when(resourceRepository.findAllById(anyList())).thenReturn(List.of(activeRoom));
+            when(userRepository.findAllById(anyList())).thenReturn(List.of(
+                    User.builder().id("u1").build(),
+                    User.builder().id("u2").build(),
+                    User.builder().id("u3").build(),
+                    User.builder().id("u4").build(),
+                    User.builder().id("u5").build()
+            ));
+
+            var page1 = bookingService.getAllBookings(null, null, null, null, 0, 2);
+            var page2 = bookingService.getAllBookings(null, null, null, null, 1, 2);
+
+            assertThat(page1.getContent().stream().map(BookingResponse::getId).toList())
+                    .containsExactly("p1", "p2");
+            assertThat(page2.getContent().stream().map(BookingResponse::getId).toList())
+                    .containsExactly("p3", "n2");
+        }
+    }
+
+    @Nested
+    @DisplayName("Auto-expire stale pending bookings")
+    class AutoExpirePendingBookings {
+
+        @Test
+        @DisplayName("transitions past-date PENDING booking to REJECTED and notifies user")
+        void transitionsPastPendingToRejected() {
+            LocalDate yesterday = LocalDate.now(BookingService.BOOKING_ZONE).minusDays(1);
+            Booking stalePending = Booking.builder()
+                    .id("booking-stale-1")
+                    .resourceId("res-001")
+                    .userId(USER_ID)
+                    .date(yesterday)
+                    .status(BookingStatus.PENDING)
+                    .build();
+
+            when(bookingRepository.findByStatusAndDateBefore(BookingStatus.PENDING, LocalDate.now(BookingService.BOOKING_ZONE)))
+                    .thenReturn(List.of(stalePending));
+            when(bookingRepository.save(any(Booking.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(resourceRepository.findById("res-001")).thenReturn(Optional.of(activeRoom));
+
+            bookingService.expirePastPendingBookings();
+
+            assertThat(stalePending.getStatus()).isEqualTo(BookingStatus.REJECTED);
+            assertThat(stalePending.getRejectionReason()).isEqualTo(BookingService.AUTO_EXPIRED_REJECTION_REASON);
+            verify(notificationService).sendNotification(
+                    eq(USER_ID),
+                    contains("was rejected"),
+                    eq(NotifType.BOOKING_REJECTED),
+                    eq(Severity.ALERT),
+                    eq("booking-stale-1"),
+                    eq("BOOKING")
+            );
+        }
+
+        @Test
+        @DisplayName("keeps today's and future pending bookings unchanged")
+        void keepsTodayAndFuturePendingUnchanged() {
+            when(bookingRepository.findByStatusAndDateBefore(BookingStatus.PENDING, LocalDate.now(BookingService.BOOKING_ZONE)))
+                    .thenReturn(List.of());
+
+            bookingService.expirePastPendingBookings();
+
+            verify(bookingRepository, never()).save(any(Booking.class));
+            verify(notificationService, never()).sendNotification(anyString(), anyString(), any(), any(), anyString(), anyString());
+        }
+
+        @Test
+        @DisplayName("preserves existing rejection reason when auto-expiring")
+        void preservesExistingRejectionReason() {
+            LocalDate yesterday = LocalDate.now(BookingService.BOOKING_ZONE).minusDays(1);
+            Booking stalePending = Booking.builder()
+                    .id("booking-stale-2")
+                    .resourceId("res-001")
+                    .userId(USER_ID)
+                    .date(yesterday)
+                    .status(BookingStatus.PENDING)
+                    .rejectionReason("Legacy reason")
+                    .build();
+
+            when(bookingRepository.findByStatusAndDateBefore(BookingStatus.PENDING, LocalDate.now(BookingService.BOOKING_ZONE)))
+                    .thenReturn(List.of(stalePending));
+            when(bookingRepository.save(any(Booking.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(resourceRepository.findById("res-001")).thenReturn(Optional.of(activeRoom));
+
+            bookingService.expirePastPendingBookings();
+
+            assertThat(stalePending.getRejectionReason()).isEqualTo("Legacy reason");
+        }
+
+        @Test
+        @DisplayName("is idempotent across repeated executions")
+        void isIdempotentAcrossRepeatedRuns() {
+            LocalDate yesterday = LocalDate.now(BookingService.BOOKING_ZONE).minusDays(1);
+            Booking stalePending = Booking.builder()
+                    .id("booking-stale-3")
+                    .resourceId("res-001")
+                    .userId(USER_ID)
+                    .date(yesterday)
+                    .status(BookingStatus.PENDING)
+                    .build();
+
+            when(bookingRepository.findByStatusAndDateBefore(BookingStatus.PENDING, LocalDate.now(BookingService.BOOKING_ZONE)))
+                    .thenReturn(List.of(stalePending))
+                    .thenReturn(List.of());
+            when(bookingRepository.save(any(Booking.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(resourceRepository.findById("res-001")).thenReturn(Optional.of(activeRoom));
+
+            bookingService.expirePastPendingBookings();
+            bookingService.expirePastPendingBookings();
+
+            verify(bookingRepository, times(1)).save(any(Booking.class));
+            verify(notificationService, times(1))
+                    .sendNotification(anyString(), anyString(), any(), any(), anyString(), anyString());
         }
     }
 
