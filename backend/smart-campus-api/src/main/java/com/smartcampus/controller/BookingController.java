@@ -128,11 +128,16 @@ public class BookingController {
             @RequestParam(required = false) BookingStatus status,
             @RequestParam(required = false) String resourceId,
             @RequestParam(required = false) String userId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate bookingDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate submittedDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
 
-        PagedResponse<BookingResponse> bookings = bookingService.getAllBookings(status, resourceId, userId, date, page, size);
+        LocalDate effectiveBookingDate = bookingDate != null ? bookingDate : date;
+        PagedResponse<BookingResponse> bookings = bookingService.getAllBookings(
+                status, resourceId, userId, effectiveBookingDate, submittedDate, page, size
+        );
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noCache())
                 .body(ApiResponse.success("All bookings retrieved successfully", bookings));

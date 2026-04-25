@@ -875,7 +875,7 @@ class BookingServiceTest {
                     User.builder().id("u6").name("U6").email("u6@sliit.lk").build()
             ));
 
-            var page = bookingService.getAllBookings(null, null, null, null, 0, 20);
+            var page = bookingService.getAllBookings(null, null, null, null, null, 0, 20);
             List<String> orderedIds = page.getContent().stream().map(BookingResponse::getId).toList();
 
             assertThat(orderedIds).containsExactly(
@@ -910,8 +910,8 @@ class BookingServiceTest {
                     User.builder().id("u5").build()
             ));
 
-            var page1 = bookingService.getAllBookings(null, null, null, null, 0, 2);
-            var page2 = bookingService.getAllBookings(null, null, null, null, 1, 2);
+            var page1 = bookingService.getAllBookings(null, null, null, null, null, 0, 2);
+            var page2 = bookingService.getAllBookings(null, null, null, null, null, 1, 2);
 
             assertThat(page1.getContent().stream().map(BookingResponse::getId).toList())
                     .containsExactly("p1", "p2");

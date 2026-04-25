@@ -8,6 +8,19 @@ const buildPdfFileDate = (date = new Date()) => date.toISOString().slice(0, 10);
 
 const normalizeStatus = (status) => String(status ?? '').toUpperCase();
 
+const formatSubmittedAt = (value) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+};
+
 const buildStatusSummary = (rows) => {
   const counts = rows.reduce(
     (acc, row) => {
@@ -89,12 +102,13 @@ export async function generateBookingPDF(booking, options = {}) {
       ['Resource', booking.resourceName],
       ['Resource Type', booking.resourceType ?? '-'],
       ['Location', booking.resourceLocation ?? '-'],
-      ['Date', booking.date],
+      ['Booking Date', booking.date],
       ['Time', `${booking.startTime} – ${booking.endTime}`],
       ['Purpose', booking.purpose],
       ['Expected Attendees', booking.expectedAttendees?.toString() ?? '-'],
       ['Status', booking.status],
       ['Booked By', `${booking.userName} (${booking.userEmail ?? ''})`],
+      ['Submitted', formatSubmittedAt(booking.createdAt)],
     ],
     theme: 'striped',
     headStyles: { fillColor: [109, 40, 217] },
@@ -164,7 +178,8 @@ export function generateBookingsListPDF(rows, filters = {}, meta = {}) {
   const filterSummary = [
     `Status: ${formatFilterValue(filters.status)}`,
     `Resource: ${formatFilterValue(filters.resourceId)}`,
-    `Date: ${formatFilterValue(filters.date)}`,
+    `Booking Date: ${formatFilterValue(filters.bookingDate ?? filters.date)}`,
+    `Submitted Date: ${formatFilterValue(filters.submittedDate)}`,
   ].join('   |   ');
   doc.setTextColor(75, 85, 99);
   doc.setFontSize(9);
@@ -297,7 +312,8 @@ export function generateBookingsListPDF(rows, filters = {}, meta = {}) {
       'Resource',
       'Requested By',
       'Email',
-      'Date',
+      'Submitted',
+      'Booking Date',
       'Time',
       'Attendees',
       'Status',
@@ -308,6 +324,7 @@ export function generateBookingsListPDF(rows, filters = {}, meta = {}) {
       b.resourceName ?? '-',
       b.userName ?? '-',
       b.userEmail ?? 'N/A',
+      formatSubmittedAt(b.createdAt),
       b.date ?? '-',
       `${b.startTime ?? '-'} - ${b.endTime ?? '-'}`,
       b.expectedAttendees != null ? String(b.expectedAttendees) : '-',
@@ -318,15 +335,16 @@ export function generateBookingsListPDF(rows, filters = {}, meta = {}) {
     alternateRowStyles: { fillColor: [247, 247, 250] },
     styles: { fontSize: 8.2, cellPadding: 2.2, overflow: 'linebreak', textColor: [55, 65, 81] },
     columnStyles: {
-      0: { cellWidth: 20 },
-      1: { cellWidth: 24 },
-      2: { cellWidth: 43 },
-      3: { cellWidth: 28 },
-      4: { cellWidth: 43 },
-      5: { cellWidth: 20, halign: 'center' },
-      6: { cellWidth: 26, halign: 'center' },
-      7: { cellWidth: 17, halign: 'center' },
-      8: { cellWidth: 20, halign: 'center' },
+      0: { cellWidth: 18 },
+      1: { cellWidth: 21 },
+      2: { cellWidth: 36 },
+      3: { cellWidth: 24 },
+      4: { cellWidth: 36 },
+      5: { cellWidth: 28 },
+      6: { cellWidth: 18, halign: 'center' },
+      7: { cellWidth: 23, halign: 'center' },
+      8: { cellWidth: 14, halign: 'center' },
+      9: { cellWidth: 18, halign: 'center' },
     },
   });
 

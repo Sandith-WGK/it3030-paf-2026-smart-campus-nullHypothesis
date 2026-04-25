@@ -177,7 +177,7 @@ class BookingControllerWebMvcTest {
                 .totalPages(0)
                 .hasNext(false)
                 .build();
-        when(bookingService.getAllBookings(any(), anyString(), anyString(), any(), anyInt(), anyInt()))
+        when(bookingService.getAllBookings(any(), anyString(), anyString(), any(), any(), anyInt(), anyInt()))
                 .thenReturn(page);
 
         mockMvc.perform(get("/api/v1/bookings"))

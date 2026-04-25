@@ -31,8 +31,9 @@ function parseFiltersFromSearch(search) {
   const status = params.get('status') || undefined;
   const resourceId = params.get('resourceId') || undefined;
   const userId = params.get('userId') || undefined;
-  const date = params.get('date') || undefined;
-  return { status, resourceId, userId, date };
+  const bookingDate = params.get('bookingDate') || params.get('date') || undefined;
+  const submittedDate = params.get('submittedDate') || undefined;
+  return { status, resourceId, userId, bookingDate, submittedDate };
 }
 
 function todayInTimezone(timeZone) {
@@ -47,6 +48,21 @@ function todayInTimezone(timeZone) {
   const month = parts.find((p) => p.type === 'month')?.value;
   const day = parts.find((p) => p.type === 'day')?.value;
   return `${year}-${month}-${day}`;
+}
+
+function formatSubmittedAt(value, options = {}) {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+
+  return date.toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    ...(options.includeSeconds ? { second: '2-digit' } : {}),
+  });
 }
 
 export default function AdminBookings() {
@@ -104,6 +120,24 @@ export default function AdminBookings() {
     setFilters(parseFiltersFromSearch(location.search));
     setPage(0);
   }, [location.search]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filters.status) params.set('status', filters.status);
+    if (filters.resourceId) params.set('resourceId', filters.resourceId);
+    if (filters.userId) params.set('userId', filters.userId);
+    if (filters.bookingDate) params.set('bookingDate', filters.bookingDate);
+    if (filters.submittedDate) params.set('submittedDate', filters.submittedDate);
+
+    const nextSearch = params.toString();
+    const currentSearch = location.search.startsWith('?') ? location.search.slice(1) : location.search;
+    if (nextSearch !== currentSearch) {
+      navigate(
+        { pathname: location.pathname, search: nextSearch ? `?${nextSearch}` : '' },
+        { replace: true },
+      );
+    }
+  }, [filters, location.pathname, location.search, navigate]);
 
   useEffect(() => {
     // Keep only IDs that are still visible and pending on the current page.
@@ -277,7 +311,8 @@ export default function AdminBookings() {
       'Resource',
       'Requested By',
       'Email',
-      'Date',
+      'Submitted',
+      'Booking Date',
       'Time',
       'Attendees',
       'Status',
@@ -288,6 +323,7 @@ export default function AdminBookings() {
       b.resourceName ?? '',
       b.userName ?? '',
       b.userEmail ?? '',
+      formatSubmittedAt(b.createdAt),
       b.date ?? '',
       `${b.startTime ?? '-'} - ${b.endTime ?? '-'}`,
       b.expectedAttendees ?? '',
@@ -359,6 +395,9 @@ export default function AdminBookings() {
           <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Manage Bookings</h2>
           <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-0.5">
             Review, approve or reject booking requests
+          </p>
+          <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
+            Booking Date = event day, Submitted Date = request creation day.
           </p>
           <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-1">
             Showing page {page + 1} (up to {PAGE_SIZE} bookings per page)
@@ -537,7 +576,8 @@ export default function AdminBookings() {
                   </th>
                   <th className="px-4 py-3">Resource</th>
                   <th className="px-4 py-3">Requested By</th>
-                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Submitted</th>
+                  <th className="px-4 py-3">Booking Date</th>
                   <th className="px-4 py-3">Time</th>
                   <th className="px-4 py-3">Attendees</th>
                   <th className="px-4 py-3">Status</th>
@@ -603,6 +643,9 @@ export default function AdminBookings() {
                               </p>
                             )}
                           </div>
+                        </td>
+                        <td className="px-4 py-3 text-zinc-600 dark:text-zinc-300 whitespace-nowrap">
+                          {formatSubmittedAt(b.createdAt)}
                         </td>
                         <td className="px-4 py-3">
                           <span className="flex items-center gap-1 text-zinc-600 dark:text-zinc-300">
