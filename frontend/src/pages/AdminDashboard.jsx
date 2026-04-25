@@ -14,6 +14,7 @@ import {
   Eye, EyeOff, Shield, KeyRound, Sparkles, Users
 } from 'lucide-react';
 import Layout from '../components/layout/Layout';
+import { showConfirm, showSuccess, showError } from '../utils/alerts';
 
 const COLORS = ['#8b5cf6', '#f59e0b', '#3b82f6', '#10b981'];
 
@@ -73,9 +74,20 @@ export default function AdminDashboard() {
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this user?")) {
+    const result = await showConfirm(
+      'Delete User?',
+      'This action is permanent. All future bookings will be cancelled and assigned tickets will be unassigned.',
+      'Yes, delete user'
+    );
+    if (!result.isConfirmed) return;
+
+    try {
       await userService.deleteUser(id);
+      showSuccess('User Deleted', 'The user account has been permanently removed.');
       fetchUsers();
+    } catch (err) {
+      console.error('Delete failed:', err);
+      showError('Delete Failed', 'Could not delete this user. Please try again.');
     }
   };
 
