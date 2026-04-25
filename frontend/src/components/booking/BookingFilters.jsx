@@ -55,13 +55,29 @@ export default function BookingFilters({ filters, onChange }) {
         ))}
       </select>
 
-      {/* Date */}
-      <input
-        type="date"
-        className={selectClass}
-        value={filters.date ?? ''}
-        onChange={set('date')}
-      />
+      {/* Booking Date */}
+      <label className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+        <span>Booking Date</span>
+        <input
+          type="date"
+          className={selectClass}
+          value={filters.bookingDate ?? ''}
+          onChange={set('bookingDate')}
+          aria-label="Booking date filter"
+        />
+      </label>
+
+      {/* Submitted Date */}
+      <label className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+        <span>Submitted Date</span>
+        <input
+          type="date"
+          className={selectClass}
+          value={filters.submittedDate ?? ''}
+          onChange={set('submittedDate')}
+          aria-label="Submitted date filter"
+        />
+      </label>
 
       {/* Clear */}
       {hasFilters && (

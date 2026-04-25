@@ -26,6 +26,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -36,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -217,12 +219,20 @@ public class BookingService {
     }
 
     public PagedResponse<BookingResponse> getAllBookings(BookingStatus status, String resourceId,
-                                                         String userId, LocalDate date, int page, int size) {
+                                                         String userId, LocalDate bookingDate, LocalDate submittedDate,
+                                                         int page, int size) {
         Query query = new Query();
         if (status != null) query.addCriteria(Criteria.where("status").is(status));
         if (resourceId != null && !resourceId.isBlank()) query.addCriteria(Criteria.where("resourceId").is(resourceId));
         if (userId != null && !userId.isBlank()) query.addCriteria(Criteria.where("userId").is(userId));
-        if (date != null) query.addCriteria(Criteria.where("date").is(date));
+        if (bookingDate != null) query.addCriteria(Criteria.where("date").is(bookingDate));
+        if (submittedDate != null) {
+            Instant dayStart = submittedDate.atStartOfDay(BOOKING_ZONE).toInstant();
+            Instant nextDayStart = submittedDate.plusDays(1).atStartOfDay(BOOKING_ZONE).toInstant();
+            query.addCriteria(Criteria.where("createdAt")
+                    .gte(Objects.requireNonNull(dayStart))
+                    .lt(Objects.requireNonNull(nextDayStart)));
+        }
 
         if (page < 0) page = 0;
         if (size <= 0) size = 20;
