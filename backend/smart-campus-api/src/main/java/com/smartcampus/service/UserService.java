@@ -300,14 +300,8 @@ public class UserService {
 
     public void deleteUser(String id) {
         User user = getUserById(id);
-        
-        // 1. Soft Delete the User
-        user.setDeleted(true);
-        user.setEnabled(false);
-        user.setDeletedAt(Instant.now());
-        userRepository.save(user);
 
-        // 2. Booking Cleanup: Cancel all future bookings
+        // 1. Booking Cleanup: Cancel all future bookings before deleting the user
         java.time.LocalDate today = java.time.LocalDate.now();
         java.time.LocalTime now = java.time.LocalTime.now();
         
@@ -319,11 +313,11 @@ public class UserService {
         
         for (Booking booking : futureBookings) {
             booking.setStatus(BookingStatus.REJECTED);
-            booking.setRejectionReason("User account deleted/deactivated.");
+            booking.setRejectionReason("User account deleted.");
             bookingRepository.save(booking);
         }
 
-        // 3. Ticket Cleanup
+        // 2. Ticket Cleanup
         // Unassign tickets assigned to this technician
         List<Ticket> assignedTickets = ticketRepository.findByAssigneeId(id);
         for (Ticket ticket : assignedTickets) {
@@ -334,6 +328,8 @@ public class UserService {
             ticketRepository.save(ticket);
         }
 
-        System.out.println("DEBUG: Safe deleted user (Soft Delete performed): " + id);
+        // 3. Hard Delete the User
+        userRepository.delete(user);
+        System.out.println("DEBUG: Hard deleted user from database: " + id);
     }
 }
